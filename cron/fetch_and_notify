@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Activate virtual environment
-source /path/to/venv/bin/activate
+source /home/pacificDev/venv/bin/activate
 
 # Navigate to project directory
-cd /path/to/repositories/open-agentic-investor
+cd /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor
 
 # Fetch stock prices
 python scripts/fetch_prices.py > cron_output.log
