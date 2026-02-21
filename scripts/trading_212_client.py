@@ -24,6 +24,8 @@ class Trading212Client:
     def fetch_account_balance(self):
         endpoint = f"{self.API_BASE_URL}/equity/account/cash"
         response = requests.get(endpoint, headers=self.auth_header)
+        print("Request Headers:", self.auth_header)
+        print("Endpoint URL:", endpoint)
         
         if response.status_code == 200:
             return response.json()
