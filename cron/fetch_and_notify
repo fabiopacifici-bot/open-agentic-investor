@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Activate virtual environment
+source /path/to/venv/bin/activate
+
+# Navigate to project directory
+cd /path/to/repositories/open-agentic-investor
+
+# Fetch stock prices
+python scripts/fetch_prices.py > cron_output.log
+
+# Notify channels about recommendations
+python scripts/notifier.py >> cron_output.log

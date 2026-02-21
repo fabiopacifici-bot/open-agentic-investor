@@ -1,0 +1,14 @@
+{
+    "portfolio": [
+        {
+            "symbol": "AAPL",
+            "buy_threshold": 140.0,
+            "sell_threshold": 180.0
+        },
+        {
+            "symbol": "TSLA",
+            "buy_threshold": 600.0,
+            "sell_threshold": 750.0
+        }
+    ]
+}
