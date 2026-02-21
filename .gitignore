@@ -1,0 +1,6 @@
+# Git ignored files
+config/.env
+__pycache__
+*.pyc
+.idea/
+.vscode/

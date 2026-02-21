@@ -1,0 +1,8 @@
+name: open-agentic-investor
+description: An OpenClaw skill for autonomous investment recommendations. Fetch stock prices, analyze portfolios, notify buy/sell orders, and optionally execute trades with Trading 212.
+entrypoint: scripts/
+author: fabiopacifici-bot
+version: 0.1.0
+dependencies:
+  - python: '>=3.7'
+skill_type: autonomous
