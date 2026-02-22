@@ -21,43 +21,22 @@ class Trading212Client:
             "Authorization": "Basic " + base64.b64encode(credentials.encode()).decode()
         }
 
-    def fetch_account_balance(self):
-        endpoint = f"{self.API_BASE_URL}/equity/account/cash"
-        response = requests.get(endpoint, headers=self.auth_header)
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            response.raise_for_status()
-
-    def place_order(self, ticker, quantity, action="BUY"):
-        endpoint = f"{self.API_BASE_URL}/equity/order"
-        payload = {
-            "instrumentCode": ticker,
-            "quantity": quantity,
-            "action": action
-        }
-        
-        response = requests.post(endpoint, json=payload, headers=self.auth_header)
-        
-        if response.status_code in (200, 201):
-            return response.json()
-        else:
-            response.raise_for_status()
-
     def fetch_positions(self):
-        endpoint = f"{self.API_BASE_URL}/positions"
+        endpoint = f"{self.API_BASE_URL}/equity/positions"
         response = requests.get(endpoint, headers=self.auth_header)
 
         if response.status_code == 200:
+            print("Successful Response:")
+            print(response.json())
             return response.json()
         else:
+            print(f"Error {response.status_code}: {response.text}")
             response.raise_for_status()
 
 if __name__ == "__main__":
     client = Trading212Client()
     try:
-        stocks = client.fetch_positions()
-        print("Your Stock Holdings:", stocks)
+        print("Testing /positions endpoint...")
+        client.fetch_positions()
     except Exception as e:
-        print("Error fetching stocks:", e)
+        print("Caught exception while testing /positions:", str(e))
