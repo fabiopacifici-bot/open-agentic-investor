@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Activate virtual environment
-source /home/pacificDev/venv/bin/activate
+source /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor/venv/bin/activate
 
 # Navigate to project directory
 cd /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor

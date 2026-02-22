@@ -1,4 +1,5 @@
 import os
+import requests
 
 def notify_channel(message):
     # Use environment variables for secure configuration
