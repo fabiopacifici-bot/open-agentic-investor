@@ -34,6 +34,8 @@ def fetch_portfolio_symbols():
 
     response = requests.get(f"{API_BASE_URL}/equity/portfolio", headers=headers)
     print("Request Headers:", headers)
+    print("API_BASE_URL:", API_BASE_URL)
+    print("Response Text:", response.text)
     if response.status_code == 200:
         data = response.json()
         return [stock['symbol'] for stock in data.get('portfolio', [])]

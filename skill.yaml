@@ -1,4 +1,10 @@
 name: open-agentic-investor
+version: 1.0.0
+description: An OpenClaw-ready skill for automated portfolio analysis and trading insights.
+dependencies:
+  - requests
+  - python-dotenv
+  - schedule
 description: An OpenClaw skill for autonomous investment recommendations. Fetch stock prices, analyze portfolios, notify buy/sell orders, and optionally execute trades with Trading 212.
 entrypoint: scripts/
 author: fabiopacifici-bot
