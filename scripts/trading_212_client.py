@@ -24,8 +24,6 @@ class Trading212Client:
     def fetch_account_balance(self):
         endpoint = f"{self.API_BASE_URL}/equity/account/cash"
         response = requests.get(endpoint, headers=self.auth_header)
-        print("Request Headers:", self.auth_header)
-        print("Endpoint URL:", endpoint)
         
         if response.status_code == 200:
             return response.json()
@@ -46,3 +44,20 @@ class Trading212Client:
             return response.json()
         else:
             response.raise_for_status()
+
+    def fetch_positions(self):
+        endpoint = f"{self.API_BASE_URL}/positions"
+        response = requests.get(endpoint, headers=self.auth_header)
+
+        if response.status_code == 200:
+            return response.json()
+        else:
+            response.raise_for_status()
+
+if __name__ == "__main__":
+    client = Trading212Client()
+    try:
+        stocks = client.fetch_positions()
+        print("Your Stock Holdings:", stocks)
+    except Exception as e:
+        print("Error fetching stocks:", e)
