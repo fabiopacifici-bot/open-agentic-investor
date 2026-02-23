@@ -3,7 +3,7 @@ import requests
 
 def notify_channel(message):
     # Use environment variables for secure configuration
-    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "your_bot_token")
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", None) or OpenClaw.get_channel_config("telegram", "botToken")
     telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "your_chat_id")
 
     api_url = f"https://api.telegram.org/bot{telegram_bot_token}/sendMessage"

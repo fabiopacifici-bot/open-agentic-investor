@@ -1,6 +1,6 @@
 import logging
-from scripts.fetch_account_info import fetch_account_info
-from scripts.fetch_prices import fetch_prices
+from scripts.fetch_account_info import fetch_account_info as fetch_account_info
+from scripts.fetch_prices import fetch_prices as fetch_prices
 from scripts.portfolio_manager import analyze_portfolio
 from scripts.notifier import notify_channel
 
