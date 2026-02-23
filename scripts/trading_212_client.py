@@ -7,6 +7,13 @@ class Trading212Client:
     def __init__(self):
         # Load credentials at runtime (after .env has been loaded by credential handler)
         self.api_key = get_credential("API_KEY")
+        
+        # API_SECRET is optional - only needed for certain Trading 212 account types
+        try:
+            self.api_secret = get_credential("API_SECRET")
+        except (KeyError, ValueError):
+            self.api_secret = None
+            logger.info("API_SECRET not provided - using API_KEY only authentication")
 
         # Resolve API base URL at runtime so environment overrides take effect
         self.api_base_url = os.getenv("API_BASE_URL", "https://live.trading212.com/api/v0")

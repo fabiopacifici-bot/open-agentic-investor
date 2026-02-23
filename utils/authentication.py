@@ -11,17 +11,21 @@ class AuthenticationError(Exception):
 def load_credentials():
     """Load API credentials from environment variables.
     
-    Trading 212 API uses a simple API Key in the Authorization header.
+    Trading 212 API may use either:
+    - Simple API Key in Authorization header, OR
+    - API Key + API Secret (depending on your account setup)
     """
     api_base_url = os.getenv("API_BASE_URL")
     api_key = os.getenv("API_KEY")
+    api_secret = os.getenv("API_SECRET")  # Optional, depends on Trading 212 setup
 
     if not all([api_base_url, api_key]):
         raise AuthenticationError("Missing required API credentials (API_BASE_URL, API_KEY) in environment variables.")
 
     return {
         "api_base_url": api_base_url,
-        "api_key": api_key
+        "api_key": api_key,
+        "api_secret": api_secret  # May be None if not provided
     }
 
 def validate_token(auth_header):
@@ -54,14 +58,22 @@ def validate_token(auth_header):
 def generate_auth_header():
     """Generate authentication header for Trading 212 API requests.
     
-    Trading 212 uses a simple API Key authentication method:
-    Authorization: {API_KEY}
+    Supports two authentication methods:
+    1. Simple API Key: Authorization: {API_KEY}
+    2. API Key + Secret (if both provided): Authorization: {API_KEY}:{API_SECRET}
     
     Returns:
         dict: Headers dictionary with Authorization
     """
     creds = load_credentials()
+    
+    # If API_SECRET is provided, combine with API_KEY
+    if creds['api_secret']:
+        auth_value = f"{creds['api_key']}:{creds['api_secret']}"
+    else:
+        auth_value = creds['api_key']
+    
     return {
-        "Authorization": creds['api_key'],
+        "Authorization": auth_value,
         "Content-Type": "application/json"
     }
