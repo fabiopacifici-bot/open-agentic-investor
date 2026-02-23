@@ -6,7 +6,9 @@
         "env": {
           "API_KEY": "<api-key>",
           "API_SECRET": "<api-secret>",
-          "TELEGRAM_BOT_TOKEN": "<telegram-bot-token>"
+          "TELEGRAM_BOT_TOKEN": "<telegram-bot-token>",
+          "TELEGRAM_CHAT_ID": "<telegram-chat-id>",
+          "ALPHA_API": "<alpha-vantage-api-key>"
         }
       }
     }
