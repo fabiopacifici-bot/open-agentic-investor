@@ -6,11 +6,11 @@
 
 ## Problem
 
-Commit `fa5887d` ("Add dynamic credential handling for API_KEY and API_SECRET with fallback to .env") contains hardcoded Telegram credentials in `scripts/OpenClaw.py`:
+Commit `fa5887d` ("Add dynamic credential handling for API_KEY and API_SECRET with fallback to .env") contained hardcoded Telegram credentials in `scripts/OpenClaw.py`:
 
 ```python
-TELEGRAM_BOT_TOKEN: "8502164226:AAH1xTbtzPI5T-Hqbbr2Jd7vRljer_KddyA"
-TELEGRAM_CHAT_ID: "6395145098"
+TELEGRAM_BOT_TOKEN: "REDACTED_BOT_TOKEN_VALUE"
+TELEGRAM_CHAT_ID: "REDACTED_CHAT_ID_VALUE"
 ```
 
 **Critical:** These commits have NOT been pushed to remote yet, so we can safely rewrite history.
@@ -76,9 +76,9 @@ git branch backup/before-history-cleanup
 After cleanup:
 ```bash
 # Search for credential patterns in entire history
-git log --all --full-history -p | grep -E "(8502164226|6395145098|AAH1xTbtzPI5T)"
+# Example pattern: git log --all --full-history -p | grep -E "(PATTERN1|PATTERN2)"
 
-# Should return nothing
+# Should return nothing (0 occurrences)
 ```
 
 ## Post-Cleanup Actions
