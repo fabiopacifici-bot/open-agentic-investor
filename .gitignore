@@ -6,3 +6,4 @@ __pycache__
 .vscode/
 cron_output.log
 logs/skill.log
+validation_logs
