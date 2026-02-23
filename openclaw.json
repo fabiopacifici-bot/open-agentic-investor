@@ -1,0 +1,14 @@
+{
+  "skills": {
+    "entries": {
+      "open-agentic-investor": {
+        "enabled": true,
+        "env": {
+          "API_KEY": "<api-key>",
+          "API_SECRET": "<api-secret>",
+          "TELEGRAM_BOT_TOKEN": "<telegram-bot-token>"
+        }
+      }
+    }
+  }
+}
