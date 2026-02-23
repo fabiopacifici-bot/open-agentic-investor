@@ -5,3 +5,4 @@ __pycache__
 .idea/
 .vscode/
 cron_output.log
+logs/skill.log
