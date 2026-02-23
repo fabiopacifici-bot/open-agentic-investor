@@ -1,6 +1,8 @@
 ---
 name: open-agentic-investor
 description: Comprehensive portfolio management, stock analysis, and notification skill for Trading212 users.
+tags: ["trading", "portfolio", "stocks", "analysis"]
+version: 1.0.0
 ---
 
 # Open-Agentic-Investor Skill
