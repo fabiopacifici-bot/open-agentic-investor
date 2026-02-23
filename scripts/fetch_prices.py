@@ -7,10 +7,10 @@ load_dotenv()
 
 def fetch_stock_prices(symbols):
     # Placeholder for a financial API base URL
-    API_BASE_URL = "https://www.alphavantage.co/query"
+    API_BASE_URL = "https://live.trading212.com/api/v0"
 
     headers = {
-        "Authorization": f"Bearer {os.getenv('FINANCIAL_API_KEY', 'your_api_key_here')}",
+        "Authorization": f"Bearer {os.getenv('API_KEY', 'your_api_key_here')}",
     }
 
     prices = {}
@@ -43,7 +43,7 @@ def fetch_portfolio_symbols():
         print("Error fetching portfolio symbols:", response.status_code)
         return []
 
-def main():
+def fetch_prices():
     portfolio_symbols = fetch_portfolio_symbols()  # Dynamically fetched from Trading 212
     prices = fetch_stock_prices(portfolio_symbols)
     for symbol, price in prices.items():
