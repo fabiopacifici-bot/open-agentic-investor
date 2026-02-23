@@ -1,6 +1,6 @@
 import os
+import base64
 from dotenv import load_dotenv
-import logging
 import requests
 
 # Load environment variables
@@ -25,7 +25,10 @@ def load_credentials():
     }
 
 def validate_token(auth_header):
-    """Validate API token by making a lightweight API request."""
+    """Validate API token by making a lightweight API request.
+
+    NOTE: Trading212 may not expose a dedicated validate-token endpoint; use with caution.
+    """
     endpoint = f"{load_credentials()['api_base_url']}/validate-token"
     response = requests.get(endpoint, headers=auth_header)
 
@@ -35,9 +38,11 @@ def validate_token(auth_header):
     return True
 
 def generate_auth_header():
-    """Generate authentication header for API requests."""
+    """Generate authentication header for API requests using HTTP Basic (base64) encoding."""
     creds = load_credentials()
-    auth_token = f"{creds['api_key']}:{creds['api_secret']}"
+    token = f"{creds['api_key']}:{creds['api_secret']}"
+    encoded = base64.b64encode(token.encode("utf-8")).decode("utf-8")
     return {
-        "Authorization": f"Basic {auth_token}"
+        "Authorization": f"Basic {encoded}",
+        "Content-Type": "application/json"
     }

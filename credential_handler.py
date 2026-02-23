@@ -3,18 +3,24 @@ from dotenv import load_dotenv
 
 # Ensure .env file is loaded
 def load_environment():
-    load_dotenv()
+    dotenv_path = os.path.join(os.getcwd(), ".env")
+    success = load_dotenv(dotenv_path=dotenv_path)
+    if success:
+        print(f"Successfully loaded .env file from {dotenv_path}")
+    else:
+        print(f"Failed to load .env file from {dotenv_path}")
 
 def get_credential(key):
     """Fetches credentials dynamically from environment or OpenClaw secure token backend."""
-    # Prefer .env value
-    value = os.getenv(key)
-    if value:
-        return value
-
     # Load .env variables
     load_environment()
     
+    # Prefer .env value
+    value = os.getenv(key)
+    print(f"DEBUG: Retrieved {key} = {value}")
+    if value:
+        return value
+
     # Dynamically prompt user as fallback
     # Example: Prompt user for runtime injection
     # Replace this with OpenClaw secure backend API call if available
