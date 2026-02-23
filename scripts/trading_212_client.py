@@ -1,7 +1,7 @@
 import base64
 import os
 import requests
-from dotenv import load_dotenv
+from scripts.credential_handler import get_credential
 from utils.logger import logger
 
 # Load .env file
@@ -12,9 +12,8 @@ class Trading212Client:
 
     def __init__(self):
         from utils.authentication import load_credentials
-        creds = load_credentials()
-        self.api_key = creds["api_key"]
-        self.api_secret = creds["api_secret"]
+        self.api_key = get_credential("API_KEY")
+        self.api_secret = get_credential("API_SECRET")
 
         credentials = f"{self.api_key}:{self.api_secret}"
         from utils.authentication import generate_auth_header

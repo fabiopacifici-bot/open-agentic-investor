@@ -1,6 +1,6 @@
-from trading_212_client import Trading212Client
+from scripts.trading_212_client import Trading212Client
 
-def main():
+def fetch_account_info():
     client = Trading212Client()
     
     try:
