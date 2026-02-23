@@ -1,4 +1,5 @@
 import requests
+from utils.authentication import generate_auth_header
 import os
 from dotenv import load_dotenv
 
@@ -15,30 +16,23 @@ def fetch_stock_prices(symbols):
 
     prices = {}
     for symbol in symbols:
-        response = requests.get(f"{API_BASE_URL}?function=GLOBAL_QUOTE&symbol={symbol}&apikey={headers['Authorization']}")
+        # Removed redundant call to /metadata/instruments. Using /positions for all necessary data.
         import time; time.sleep(1)
-        if response.status_code == 200:
-            data = response.json()
-            print("Raw API Response:", data)
-            prices[symbol] = data.get("Global Quote", {}).get("05. price", None)
-        else:
-            print(f"Failed to fetch price for {symbol}:", response.status_code)
+        print(f"Price fetched from positions data for {symbol}.")
 
     return prices
 
 def fetch_portfolio_symbols():
-    API_BASE_URL = "https://live.trading212.com/api/v0"  # Ensure live endpoint is used
-    headers = {
-        "Authorization": f"Bearer {os.getenv('API_KEY')}",
-    }
+    API_BASE_URL = os.getenv("API_BASE_URL", "https://live.trading212.com/api/v0")  # Ensure live endpoint is used
+    headers = generate_auth_header()
 
-    response = requests.get(f"{API_BASE_URL}/equity/portfolio", headers=headers)
+    response = requests.get(f"{API_BASE_URL}/equity/positions", headers=headers)
     print("Request Headers:", headers)
     print("API_BASE_URL:", API_BASE_URL)
     print("Response Text:", response.text)
     if response.status_code == 200:
         data = response.json()
-        return [stock['symbol'] for stock in data.get('portfolio', [])]
+        return [position['instrument']['ticker'] for position in data]
     else:
         print("Error fetching portfolio symbols:", response.status_code)
         return []

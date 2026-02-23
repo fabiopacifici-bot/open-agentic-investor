@@ -1,22 +1,23 @@
 import base64
 import os
 import requests
-from scripts.credential_handler import get_credential
+from credential_handler import get_credential
 from utils.logger import logger
 
 class Trading212Client:
-    API_BASE_URL = os.getenv("API_BASE_URL", "https://demo.trading212.com/api/v0")
-
     def __init__(self):
+        # Load credentials at runtime (after .env has been loaded by credential handler)
         self.api_key = get_credential("API_KEY")
         self.api_secret = get_credential("API_SECRET")
 
-        credentials = f"{self.api_key}:{self.api_secret}"
+        # Resolve API base URL at runtime so environment overrides take effect
+        self.api_base_url = os.getenv("API_BASE_URL", "https://demo.trading212.com/api/v0")
+
         from utils.authentication import generate_auth_header
         self.auth_header = generate_auth_header()
 
     def fetch_account_balance(self):
-        endpoint = f"{self.API_BASE_URL}/equity/account/cash"
+        endpoint = f"{self.api_base_url}/equity/account/cash"
         logger.info("Fetching account balance...")
         response = requests.get(endpoint, headers=self.auth_header)
         logger.debug(f"Request Headers: {self.auth_header}")
@@ -27,10 +28,12 @@ class Trading212Client:
             return response.json()
         else:
             logger.error(f"Failed to fetch account balance: {response.status_code} {response.text}")
+            logger.debug(f"Response headers: {response.headers}")
+            logger.debug(f"Response content (bytes): {response.content}")
             response.raise_for_status()
 
     def place_order(self, ticker, quantity, action="BUY"):
-        endpoint = f"{self.API_BASE_URL}/equity/order"
+        endpoint = f"{self.api_base_url}/equity/order"
         payload = {
             "instrumentCode": ticker,
             "quantity": quantity,
