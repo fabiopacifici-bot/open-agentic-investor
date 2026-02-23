@@ -4,14 +4,10 @@ import requests
 from scripts.credential_handler import get_credential
 from utils.logger import logger
 
-# Load .env file
-load_dotenv()
-
 class Trading212Client:
     API_BASE_URL = os.getenv("API_BASE_URL", "https://demo.trading212.com/api/v0")
 
     def __init__(self):
-        from utils.authentication import load_credentials
         self.api_key = get_credential("API_KEY")
         self.api_secret = get_credential("API_SECRET")
 
@@ -48,5 +44,5 @@ class Trading212Client:
             logger.info("Order placed successfully.")
             return response.json()
         else:
-            logger.error(f"Failed to place order: {response.status_code} {response.text}")
+            logger.error(f"Order failed: {response.status_code} {response.text}")
             response.raise_for_status()
