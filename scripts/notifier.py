@@ -15,6 +15,11 @@ def notify_channel(message):
         ValueError: If TELEGRAM_BOT_TOKEN is not configured
         requests.HTTPError: If Telegram API request fails
     """
+    # Short-circuit outbound network calls when NO_OUTBOUND env var is set (used in testing/subagent runs)
+    if os.getenv('NO_OUTBOUND', '').lower() in ('1','true','yes'):
+        print('notify_channel: NO_OUTBOUND set — skipping network call')
+        return True
+
     # Use environment variables for secure configuration
     telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", None)
     telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", None)
