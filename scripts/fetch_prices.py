@@ -37,7 +37,13 @@ def fetch_stock_prices():
     prices = {}
     
     # Extract prices from positions
-    positions = portfolio.get('positions', [])
+    if isinstance(portfolio, dict):
+        positions = portfolio.get('positions', [])
+    elif isinstance(portfolio, list):
+        positions = portfolio
+    else:
+        positions = []
+
     for position in positions:
         ticker = position.get('ticker')
         current_price = position.get('currentPrice')
