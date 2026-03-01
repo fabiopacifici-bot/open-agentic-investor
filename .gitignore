@@ -1,4 +1,10 @@
 # Git ignored files
+# Data boundary — never commit portfolio data or exports
+Documents/
+*.db
+exports/
+*.html
+
 .env
 __pycache__
 *.pyc
