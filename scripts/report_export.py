@@ -197,7 +197,15 @@ def run_export():
     out_path.write_text(html, encoding="utf-8")
     logger.info(f"Report saved to {out_path}")
     print(f"Report saved: {out_path}")
-    return str(out_path)
+
+    # Copy to openclaw media dir for Telegram delivery
+    import shutil
+    media_dir = Path.home() / ".openclaw" / "media"
+    media_dir.mkdir(parents=True, exist_ok=True)
+    media_path = media_dir / f"report_{ts}.html"
+    shutil.copy2(out_path, media_path)
+    print(f"Media copy: {media_path}")
+    return str(media_path)
 
 
 if __name__ == "__main__":
