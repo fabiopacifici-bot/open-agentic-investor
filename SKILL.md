@@ -46,6 +46,42 @@ python3 SKILL.py
 - **404 Errors:** Check if the API endpoints are correct or need updates.
 - **Missing Notifications:** Ensure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set correctly.
 
+## Dashboard & Reports
+
+### Data Directory
+All data files (SQLite, HTML exports) are stored at `~/Documents/Investments/` — **never in the repo**.
+
+### `/investor` Slash Command
+Runs snapshot → generates HTML report → sends report to Telegram.
+
+**Frequency options:** `15min` | `30min` | `1hr` | `off`
+
+**What it does:**
+1. `python -m scripts.snapshot` — fetches live data, stores to SQLite
+2. `python -m scripts.report_export` — generates `~/Documents/Investments/report_<ts>.html`
+3. Sends report file to Telegram via `send_report_file()`
+
+### Start the Dashboard
+```bash
+cd /path/to/open-agentic-investor
+python -m dashboard.app
+# Open http://localhost:5001
+```
+
+### Snapshot Only
+```bash
+python -m scripts.snapshot
+```
+
+### Export Report Only
+```bash
+python -m scripts.report_export
+```
+
+### SQLite Database
+- Location: `~/Documents/Investments/portfolio.db`
+- Tables: `snapshots`, `positions`, `recommendations`
+
 ## Examples
 **Recommendations:**
 ```

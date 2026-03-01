@@ -75,6 +75,49 @@ def notify_channel(message):
         logger.error(error_msg)
         raise
 
+def send_report_file(filepath: str, caption: str = "📊 Portfolio Report") -> bool:
+    """Send an HTML report file to Telegram as a document attachment.
+
+    Args:
+        filepath: Path to the HTML file to send.
+        caption: Caption text shown with the file.
+
+    Returns:
+        bool: True if sent successfully.
+    """
+    if os.getenv('NO_OUTBOUND', '').lower() in ('1', 'true', 'yes'):
+        print(f'send_report_file: NO_OUTBOUND set — skipping network call (file: {filepath})')
+        return True
+
+    telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+    if not telegram_bot_token:
+        raise ValueError("TELEGRAM_BOT_TOKEN not set")
+    if not telegram_chat_id:
+        raise ValueError("TELEGRAM_CHAT_ID not set")
+
+    api_url = f"https://api.telegram.org/bot{telegram_bot_token}/sendDocument"
+    try:
+        with open(filepath, "rb") as f:
+            response = requests.post(
+                api_url,
+                data={"chat_id": telegram_chat_id, "caption": caption},
+                files={"document": (os.path.basename(filepath), f, "text/html")},
+                timeout=30,
+            )
+        if response.status_code == 200:
+            logger.info(f"Report file sent: {filepath}")
+            return True
+        else:
+            logger.error(f"Failed to send report file: {response.status_code} {response.text}")
+            response.raise_for_status()
+            return False
+    except requests.RequestException as e:
+        logger.error(f"Network error sending report file: {e}")
+        raise
+
+
 def main():
     """Test notification function."""
     example_message = "Stock Alert: BUY recommendation for AAPL at $150.00"
