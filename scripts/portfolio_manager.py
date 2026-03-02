@@ -1,7 +1,9 @@
 from scripts.trading_212_client import Trading212Client
+from scripts.signals import calculate_rsi, calculate_sma
 from utils.logger import logger
 import json
 import os
+import sqlite3
 
 def load_portfolio_config():
     """Load portfolio configuration with buy/sell thresholds."""
@@ -14,6 +16,73 @@ def load_portfolio_config():
     except Exception as e:
         logger.error(f"Error loading config: {e}")
         return {"portfolio": []}
+
+DB_PATH = os.path.expanduser("~/Documents/Investments/portfolio.db")
+
+
+def _fetch_price_history(ticker: str, limit: int = 30) -> list:
+    """Return up to *limit* historical current_price values for *ticker* from portfolio.db.
+
+    Prices are ordered oldest → newest (by snapshot_id).
+    Returns an empty list if the DB or table is unavailable.
+    """
+    if not os.path.exists(DB_PATH):
+        return []
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT current_price
+            FROM positions
+            WHERE ticker = ?
+            ORDER BY snapshot_id DESC
+            LIMIT ?
+            """,
+            (ticker, limit),
+        )
+        rows = cur.fetchall()
+        conn.close()
+        # Reverse so we get oldest → newest
+        return [row[0] for row in reversed(rows)]
+    except Exception as e:
+        logger.warning(f"Could not fetch price history for {ticker}: {e}")
+        return []
+
+
+def _build_indicator_reason(ticker: str, current_price: float) -> tuple:
+    """Return (action_override, extra_reason) using RSI + SMA20 from historical prices.
+
+    action_override is 'BUY', 'SELL', or None (fall back to threshold logic).
+    extra_reason is a string to append/replace the threshold reason, or ''.
+    """
+    prices = _fetch_price_history(ticker)
+
+    if len(prices) < 14:
+        # Not enough data — skip indicators
+        return None, ""
+
+    rsi = calculate_rsi(prices)
+    sma20 = calculate_sma(prices, period=20)
+
+    if rsi is None:
+        return None, ""
+
+    indicator_info = f"RSI={rsi:.1f}"
+    if sma20 is not None:
+        indicator_info += f", price=€{current_price:.2f}, SMA20=€{sma20:.2f}"
+
+    if rsi < 35 and sma20 is not None and current_price < sma20:
+        reason = f"{indicator_info} — price below SMA20"
+        return "BUY", reason
+
+    if rsi > 70 and sma20 is not None and current_price > sma20:
+        reason = f"{indicator_info} — price above SMA20"
+        return "SELL", reason
+
+    # Neutral indicator reading — no override, but include info in reason
+    return None, indicator_info
+
 
 def analyze_portfolio(account_info=None, stock_prices=None):
     """Analyze portfolio and generate buy/sell recommendations based on thresholds.
@@ -43,29 +112,49 @@ def analyze_portfolio(account_info=None, stock_prices=None):
         buy_threshold = thresholds.get('buy_threshold')
         sell_threshold = thresholds.get('sell_threshold')
         
+        # --- Indicator-based signals ---
+        indicator_action, indicator_reason = _build_indicator_reason(ticker, current_price)
+
         # Generate BUY recommendation if price is below buy threshold
         if buy_threshold and current_price < buy_threshold:
+            base_reason = f"Price ${current_price:.2f} below buy threshold ${buy_threshold:.2f}"
+            reason = f"{base_reason} | {indicator_reason}" if indicator_reason else base_reason
             recommendations.append({
                 "ticker": ticker,
                 "action": "BUY",
                 "quantity": 10,  # Default quantity, can be made configurable
                 "current_price": current_price,
                 "threshold": buy_threshold,
-                "reason": f"Price ${current_price:.2f} below buy threshold ${buy_threshold:.2f}"
+                "reason": reason,
             })
             logger.info(f"BUY recommendation: {ticker} at ${current_price:.2f}")
-        
+
         # Generate SELL recommendation if price is above sell threshold
         elif sell_threshold and current_price > sell_threshold:
+            base_reason = f"Price ${current_price:.2f} above sell threshold ${sell_threshold:.2f}"
+            reason = f"{base_reason} | {indicator_reason}" if indicator_reason else base_reason
             recommendations.append({
                 "ticker": ticker,
                 "action": "SELL",
                 "quantity": 5,  # Default quantity, can be made configurable
                 "current_price": current_price,
                 "threshold": sell_threshold,
-                "reason": f"Price ${current_price:.2f} above sell threshold ${sell_threshold:.2f}"
+                "reason": reason,
             })
             logger.info(f"SELL recommendation: {ticker} at ${current_price:.2f}")
+
+        # No threshold trigger — check indicator-only signal
+        elif indicator_action:
+            recommendations.append({
+                "ticker": ticker,
+                "action": indicator_action,
+                "quantity": 10 if indicator_action == "BUY" else 5,
+                "current_price": current_price,
+                "threshold": None,
+                "reason": indicator_reason,
+            })
+            logger.info(f"{indicator_action} signal (indicator): {ticker} — {indicator_reason}")
+
         else:
             logger.debug(f"HOLD: {ticker} at ${current_price:.2f} (buy: ${buy_threshold}, sell: ${sell_threshold})")
     
