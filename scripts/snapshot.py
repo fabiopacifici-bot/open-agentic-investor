@@ -41,6 +41,7 @@ def init_db(conn: sqlite3.Connection):
             value REAL,
             pnl REAL,
             pnl_pct REAL,
+            volume INTEGER,
             FOREIGN KEY(snapshot_id) REFERENCES snapshots(id)
         );
         CREATE TABLE IF NOT EXISTS recommendations (
@@ -104,11 +105,12 @@ def run_snapshot():
         ppl = p.get("ppl", 0.0) or 0.0
         value = quantity * current_price
         pos_pnl_pct = (ppl / (avg_price * quantity) * 100) if (avg_price and quantity) else 0.0
+        volume = p.get("volume")
 
         conn.execute(
-            "INSERT INTO positions (snapshot_id, ticker, quantity, avg_price, current_price, value, pnl, pnl_pct) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (snapshot_id, ticker, quantity, avg_price, current_price, value, ppl, pos_pnl_pct)
+            "INSERT INTO positions (snapshot_id, ticker, quantity, avg_price, current_price, value, pnl, pnl_pct, volume) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (snapshot_id, ticker, quantity, avg_price, current_price, value, ppl, pos_pnl_pct, volume)
         )
         if ticker and current_price:
             stock_prices[ticker] = current_price
