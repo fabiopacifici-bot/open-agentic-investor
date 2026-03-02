@@ -1,14 +1,24 @@
 {
     "portfolio": [
-        {
-            "symbol": "AAPL",
-            "buy_threshold": 140.0,
-            "sell_threshold": 180.0
-        },
-        {
-            "symbol": "TSLA",
-            "buy_threshold": 600.0,
-            "sell_threshold": 750.0
-        }
-    ]
+        {"symbol": "SOUN_US_EQ",  "buy_threshold": 6.50,  "sell_threshold": 12.00},
+        {"symbol": "TEAM_US_EQ",  "buy_threshold": 65.00, "sell_threshold": 110.00},
+        {"symbol": "ORCL_US_EQ", "buy_threshold": 120.00, "sell_threshold": 175.00},
+        {"symbol": "QUBT_US_EQ", "buy_threshold": 6.00,  "sell_threshold": 12.00},
+        {"symbol": "AMD_US_EQ",  "buy_threshold": 160.00, "sell_threshold": 230.00},
+        {"symbol": "NVDA_US_EQ", "buy_threshold": 140.00, "sell_threshold": 200.00},
+        {"symbol": "TSM_US_EQ",  "buy_threshold": 320.00, "sell_threshold": 420.00},
+        {"symbol": "BIDU_US_EQ", "buy_threshold": 95.00,  "sell_threshold": 175.00},
+        {"symbol": "BABA_US_EQ", "buy_threshold": 110.00, "sell_threshold": 180.00},
+        {"symbol": "GME_US_EQ",  "buy_threshold": 18.00,  "sell_threshold": 30.00},
+        {"symbol": "EBAY_US_EQ", "buy_threshold": 70.00,  "sell_threshold": 105.00},
+        {"symbol": "RCLF_US_EQ", "buy_threshold": 0.80,   "sell_threshold": 2.50}
+    ],
+    "alerts": {
+        "pnl_change_threshold_pct": 3.0,
+        "position_move_threshold_pct": 5.0,
+        "market_hours_only": true,
+        "market_open": "15:30",
+        "market_close": "22:00",
+        "timezone": "Europe/Berlin"
+    }
 }
