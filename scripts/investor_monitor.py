@@ -35,7 +35,8 @@ from scripts.snapshot import run_snapshot
 from scripts.report_export import run_export
 from utils.logger import logger
 
-TELEGRAM_CHAT_ID = "6395145098"
+# Override with WATCHER_CHAT_ID env var
+TELEGRAM_CHAT_ID = os.environ.get("WATCHER_CHAT_ID", "6395145098")
 
 def notify_channel(text: str):
     """Send message via OpenClaw CLI (Telegram)."""
@@ -68,7 +69,8 @@ def send_report_file(filepath: str, caption: str = "📊 Portfolio Report"):
     else:
         logger.info(f"Report file sent: {filepath}")
 
-DB_PATH = Path(os.path.expanduser("~/Documents/Investments/portfolio.db"))
+# Override with INVESTMENTS_DB env var
+DB_PATH = Path(os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db")))
 BERLIN = ZoneInfo("Europe/Berlin")
 
 # Config
@@ -227,13 +229,11 @@ def run_cycle():
     # Build alerts (with dedup keys)
     alerts = check_alerts(snap, positions, recs)
 
-    # Prune sent_alerts_store to keep only the last 10 snapshot ids
+    # Keep only the 10 most recent snapshot ids to bound memory
     try:
-        keep = 10
-        keys_sorted = sorted(sent_alerts_store.keys())
-        if len(keys_sorted) > keep:
-            for k in keys_sorted[:-keep]:
-                sent_alerts_store.pop(k, None)
+        keys_to_remove = sorted(sent_alerts_store.keys(), reverse=True)[10:]
+        for k in keys_to_remove:
+            sent_alerts_store.pop(k)
     except Exception:
         # Non-fatal pruning errors shouldn't stop alerts
         pass
