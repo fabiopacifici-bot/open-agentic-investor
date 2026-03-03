@@ -10,8 +10,7 @@
         {"symbol": "BIDU_US_EQ", "buy_threshold": 95.00,  "sell_threshold": 175.00},
         {"symbol": "BABA_US_EQ", "buy_threshold": 110.00, "sell_threshold": 180.00},
         {"symbol": "GME_US_EQ",  "buy_threshold": 18.00,  "sell_threshold": 30.00},
-        {"symbol": "EBAY_US_EQ", "buy_threshold": 70.00,  "sell_threshold": 105.00},
-        {"symbol": "RCLF_US_EQ", "buy_threshold": 0.80,   "sell_threshold": 2.50}
+        {"symbol": "EBAY_US_EQ", "buy_threshold": 70.00,  "sell_threshold": 105.00}
     ],
     "alerts": {
         "pnl_change_threshold_pct": 3.0,
