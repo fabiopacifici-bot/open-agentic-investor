@@ -17,7 +17,8 @@ def load_portfolio_config():
         logger.error(f"Error loading config: {e}")
         return {"portfolio": []}
 
-DB_PATH = os.path.expanduser("~/Documents/Investments/portfolio.db")
+DB_PATH = os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db"))
+# Override with INVESTMENTS_DB env var
 
 
 def _fetch_price_history(ticker: str, limit: int = 30) -> list:

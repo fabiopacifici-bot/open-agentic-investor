@@ -14,14 +14,15 @@ from pathlib import Path
 from credential_handler import load_environment as load_credentials
 from utils.logger import logger
 
-DATA_DIR = Path(os.path.expanduser("~/Documents/Investments"))
+DATA_DIR = Path(os.environ.get("INVESTMENTS_DIR", os.path.expanduser("~/Documents/Investments")))
+# Override with INVESTMENTS_DIR env var
 DB_PATH = DATA_DIR / "portfolio.db"
 
 
 def load_data():
     if not DB_PATH.exists():
         logger.warning(f"No DB found at {DB_PATH}. Run snapshot.py first.")
-        return None, [], []
+        return None, [], {}, []
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -204,11 +205,7 @@ def run_export():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     result = load_data()
-    if len(result) == 3:
-        snapshot, positions, recs = result
-        history = []
-    else:
-        snapshot, positions, recs, history = result
+    snapshot, positions, recs, history = result
 
     html = generate_html(snapshot, positions, recs, history)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
