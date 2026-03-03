@@ -21,7 +21,7 @@ DB_PATH = DATA_DIR / "portfolio.db"
 def load_data():
     if not DB_PATH.exists():
         logger.warning(f"No DB found at {DB_PATH}. Run snapshot.py first.")
-        return None, [], []
+        return None, [], {}, []
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
