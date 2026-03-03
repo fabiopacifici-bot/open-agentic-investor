@@ -9,6 +9,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 
 from credential_handler import load_environment as load_credentials
 from scripts.fetch_prices import fetch_portfolio_data
@@ -18,6 +19,7 @@ from utils.logger import logger
 
 DATA_DIR = Path(os.path.expanduser("~/Documents/Investments"))
 DB_PATH = DATA_DIR / "portfolio.db"
+LOG_VALIDATION = DATA_DIR / "logs" / "snapshot_validation.log"
 
 
 def init_db(conn: sqlite3.Connection):
@@ -57,6 +59,42 @@ def init_db(conn: sqlite3.Connection):
         CREATE INDEX IF NOT EXISTS idx_recommendations_snapshot ON recommendations(snapshot_id);
     """)
     conn.commit()
+
+
+def validate_position(pos: dict) -> tuple[bool, str]:
+    """Return (True, "") if valid, else (False, reason)."""
+    # ticker optional but include for logging
+    ticker = pos.get("ticker")
+
+    # current_price
+    cp_raw = pos.get("currentPrice")
+    if cp_raw is None:
+        return False, "current_price is None"
+    try:
+        cp = float(cp_raw)
+    except Exception:
+        return False, f"current_price not a number: {cp_raw!r}"
+
+    # quantity
+    q_raw = pos.get("quantity")
+    if q_raw is None:
+        return False, "quantity is None"
+    try:
+        q = float(q_raw)
+    except Exception:
+        return False, f"quantity not a number: {q_raw!r}"
+
+    # valid (also allow zero quantity? treat zero as valid but it'll have zero value)
+    return True, ""
+
+
+def _append_validation_log(timestamp: str, total_received: int, total_saved: int, total_dropped: int):
+    try:
+        LOG_VALIDATION.parent.mkdir(parents=True, exist_ok=True)
+        with open(LOG_VALIDATION, "a", encoding="utf-8") as f:
+            f.write(f"{timestamp}\t{total_received}\t{total_saved}\t{total_dropped}\n")
+    except Exception as e:
+        logger.error(f"Failed to write validation log: {e}")
 
 
 def run_snapshot():
@@ -100,12 +138,38 @@ def run_snapshot():
         raw_positions = raw_positions.get("positions", [])
 
     stock_prices = {}
+    total_received = len(raw_positions)
+    total_saved = 0
+    total_dropped = 0
+
     for p in raw_positions:
+        valid, reason = validate_position(p)
         ticker = p.get("ticker")
+        if not valid:
+            total_dropped += 1
+            raw_val = {}
+            # capture the raw problematic fields
+            for k in ("currentPrice", "quantity", "averagePrice", "volume", "ppl"):
+                if k in p:
+                    raw_val[k] = p.get(k)
+            logger.warning(f"Dropped position for {ticker or '<unknown>'}: {reason}; raw={json.dumps(raw_val, default=str)}")
+            continue
+
+        # coerce values
         avg_price = p.get("averagePrice", 0.0) or 0.0
-        current_price = p.get("currentPrice", 0.0) or 0.0
-        quantity = p.get("quantity", 0.0) or 0.0
+        try:
+            avg_price = float(avg_price)
+        except Exception:
+            avg_price = 0.0
+
+        current_price = float(p.get("currentPrice"))
+        quantity = float(p.get("quantity"))
         ppl = p.get("ppl", 0.0) or 0.0
+        try:
+            ppl = float(ppl)
+        except Exception:
+            ppl = 0.0
+
         value = quantity * current_price
         pos_pnl_pct = (ppl / (avg_price * quantity) * 100) if (avg_price and quantity) else 0.0
         volume = p.get("volume")
@@ -115,11 +179,22 @@ def run_snapshot():
             "VALUES (?,?,?,?,?,?,?,?,?)",
             (snapshot_id, ticker, quantity, avg_price, current_price, value, ppl, pos_pnl_pct, volume)
         )
+        total_saved += 1
         if ticker and current_price:
             stock_prices[ticker] = current_price
 
     conn.commit()
-    logger.info(f"Saved {len(raw_positions)} positions")
+    logger.info(f"Saved {total_saved} positions (received {total_received}, dropped {total_dropped})")
+
+    # If all positions were dropped, warn and return early
+    if total_saved == 0 and total_received > 0:
+        logger.warning(f"All positions dropped during validation for snapshot {snapshot_id}; aborting further processing")
+        _append_validation_log(ts, total_received, total_saved, total_dropped)
+        conn.close()
+        return snapshot_id, []
+
+    # write validation log
+    _append_validation_log(ts, total_received, total_saved, total_dropped)
 
     # Analyze and store recommendations
     try:
