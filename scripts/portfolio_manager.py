@@ -1,5 +1,5 @@
 from scripts.trading_212_client import Trading212Client
-from scripts.signals import calculate_rsi, calculate_sma
+from scripts.signals import calculate_rsi, calculate_sma, detect_volume_spike
 from utils.logger import logger
 import json
 import os
@@ -23,7 +23,7 @@ DB_PATH = os.path.expanduser("~/Documents/Investments/portfolio.db")
 def _fetch_price_history(ticker: str, limit: int = 30) -> list:
     """Return up to *limit* historical current_price values for *ticker* from portfolio.db.
 
-    Prices are ordered oldest → newest (by snapshot_id).
+    Prices are ordered oldest → newest (by snapshot_id).
     Returns an empty list if the DB or table is unavailable.
     """
     if not os.path.exists(DB_PATH):
@@ -43,15 +43,51 @@ def _fetch_price_history(ticker: str, limit: int = 30) -> list:
         )
         rows = cur.fetchall()
         conn.close()
-        # Reverse so we get oldest → newest
+        # Reverse so we get oldest → newest
         return [row[0] for row in reversed(rows)]
     except Exception as e:
         logger.warning(f"Could not fetch price history for {ticker}: {e}")
         return []
 
 
+def _fetch_volume_history(ticker: str, limit: int = 30) -> list:
+    """Attempt to fetch historical volume values for ticker from portfolio.db.
+
+    The positions table does not currently store volume by default; this helper will
+    return an empty list when no volume column exists. Returns oldest → newest order.
+    """
+    if not os.path.exists(DB_PATH):
+        return []
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        # Check if volume column exists
+        cur.execute("PRAGMA table_info(positions)")
+        cols = [r[1] for r in cur.fetchall()]
+        if 'volume' not in cols:
+            conn.close()
+            return []
+
+        cur.execute(
+            """
+            SELECT volume
+            FROM positions
+            WHERE ticker = ?
+            ORDER BY snapshot_id DESC
+            LIMIT ?
+            """,
+            (ticker, limit),
+        )
+        rows = cur.fetchall()
+        conn.close()
+        return [row[0] for row in reversed(rows)]
+    except Exception as e:
+        logger.warning(f"Could not fetch volume history for {ticker}: {e}")
+        return []
+
+
 def _build_indicator_reason(ticker: str, current_price: float) -> tuple:
-    """Return (action_override, extra_reason) using RSI + SMA20 from historical prices.
+    """Return (action_override, extra_reason) using RSI + SMA20 from historical prices and volume spikes.
 
     action_override is 'BUY', 'SELL', or None (fall back to threshold logic).
     extra_reason is a string to append/replace the threshold reason, or ''.
@@ -68,16 +104,27 @@ def _build_indicator_reason(ticker: str, current_price: float) -> tuple:
     if rsi is None:
         return None, ""
 
-    indicator_info = f"RSI={rsi:.1f}"
+    indicator_parts = [f"RSI={rsi:.1f}"]
     if sma20 is not None:
-        indicator_info += f", price=€{current_price:.2f}, SMA20=€{sma20:.2f}"
+        indicator_parts.append(f"price=€{current_price:.2f}")
+        indicator_parts.append(f"SMA20=€{sma20:.2f}")
+
+    # Check for volume spike and include in reason if present
+    volumes = _fetch_volume_history(ticker)
+    vol_spike = False
+    if volumes:
+        vol_spike = detect_volume_spike(volumes)
+        if vol_spike:
+            indicator_parts.append("volume_spike")
+
+    indicator_info = ", ".join(indicator_parts)
 
     if rsi < 35 and sma20 is not None and current_price < sma20:
-        reason = f"{indicator_info} — price below SMA20"
+        reason = f"{indicator_info}  price below SMA20"
         return "BUY", reason
 
     if rsi > 70 and sma20 is not None and current_price > sma20:
-        reason = f"{indicator_info} — price above SMA20"
+        reason = f"{indicator_info}  price above SMA20"
         return "SELL", reason
 
     # Neutral indicator reading — no override, but include info in reason
