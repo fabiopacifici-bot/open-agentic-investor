@@ -58,6 +58,7 @@ def init_db(conn: sqlite3.Connection):
             FOREIGN KEY(snapshot_id) REFERENCES snapshots(id)
         );
         CREATE INDEX IF NOT EXISTS idx_recommendations_snapshot ON recommendations(snapshot_id);
+        CREATE INDEX IF NOT EXISTS idx_positions_snapshot ON positions(snapshot_id);
     """)
     conn.commit()
 
