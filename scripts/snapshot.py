@@ -17,7 +17,8 @@ from scripts.fetch_account_info import fetch_account_info
 from scripts.portfolio_manager import analyze_portfolio
 from utils.logger import logger
 
-DATA_DIR = Path(os.path.expanduser("~/Documents/Investments"))
+# Override with INVESTMENTS_DIR env var
+DATA_DIR = Path(os.environ.get("INVESTMENTS_DIR", os.path.expanduser("~/Documents/Investments")))
 DB_PATH = DATA_DIR / "portfolio.db"
 LOG_VALIDATION = DATA_DIR / "logs" / "snapshot_validation.log"
 
@@ -69,11 +70,11 @@ def validate_position(pos: dict) -> tuple[bool, str]:
     # current_price
     cp_raw = pos.get("currentPrice")
     if cp_raw is None:
-        return False, "current_price is None"
+        return False, "currentPrice is None"
     try:
         cp = float(cp_raw)
     except Exception:
-        return False, f"current_price not a number: {cp_raw!r}"
+        return False, f"currentPrice not a number: {cp_raw!r}"
 
     # quantity
     q_raw = pos.get("quantity")
@@ -186,6 +187,7 @@ def run_snapshot():
     conn.commit()
     logger.info(f"Saved {total_saved} positions (received {total_received}, dropped {total_dropped})")
 
+    # Snapshot row is kept intentionally even if all positions were dropped — preserves audit trail
     # If all positions were dropped, warn and return early
     if total_saved == 0 and total_received > 0:
         logger.warning(f"All positions dropped during validation for snapshot {snapshot_id}; aborting further processing")

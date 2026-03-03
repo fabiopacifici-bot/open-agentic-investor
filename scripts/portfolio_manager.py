@@ -23,8 +23,8 @@ DB_PATH = os.path.expanduser("~/Documents/Investments/portfolio.db")
 def _fetch_price_history(ticker: str, limit: int = 30) -> list:
     """Return up to *limit* historical current_price values for *ticker* from portfolio.db.
 
-    Prices are ordered oldest → newest (by snapshot_id).
-    Returns an empty list if the DB or table is unavailable.
+    Prices are ordered oldest → newest (by snapshot_id).
+    Returns an empty list if the DB or table is unavailable. Filters out NULLs and non-numeric values.
     """
     if not os.path.exists(DB_PATH):
         return []
@@ -43,8 +43,18 @@ def _fetch_price_history(ticker: str, limit: int = 30) -> list:
         )
         rows = cur.fetchall()
         conn.close()
-        # Reverse so we get oldest → newest
-        return [row[0] for row in reversed(rows)]
+        # Reverse so we get oldest → newest and coerce to floats, dropping NULLs
+        prices = []
+        for row in reversed(rows):
+            v = row[0]
+            if v is None:
+                continue
+            try:
+                prices.append(float(v))
+            except Exception:
+                # Skip non-numeric entries
+                continue
+        return prices
     except Exception as e:
         logger.warning(f"Could not fetch price history for {ticker}: {e}")
         return []
@@ -53,8 +63,8 @@ def _fetch_price_history(ticker: str, limit: int = 30) -> list:
 def _fetch_volume_history(ticker: str, limit: int = 30) -> list:
     """Attempt to fetch historical volume values for ticker from portfolio.db.
 
-    The positions table does not currently store volume by default; this helper will
-    return an empty list when no volume column exists. Returns oldest → newest order.
+    The positions table may store volume; this helper will return an empty list when no volume column exists.
+    Returns oldest → newest order and filters out NULLs.
     """
     if not os.path.exists(DB_PATH):
         return []
@@ -80,7 +90,16 @@ def _fetch_volume_history(ticker: str, limit: int = 30) -> list:
         )
         rows = cur.fetchall()
         conn.close()
-        return [row[0] for row in reversed(rows)]
+        volumes = []
+        for row in reversed(rows):
+            v = row[0]
+            if v is None:
+                continue
+            try:
+                volumes.append(float(v))
+            except Exception:
+                continue
+        return volumes
     except Exception as e:
         logger.warning(f"Could not fetch volume history for {ticker}: {e}")
         return []
@@ -120,11 +139,11 @@ def _build_indicator_reason(ticker: str, current_price: float) -> tuple:
     indicator_info = ", ".join(indicator_parts)
 
     if rsi < 35 and sma20 is not None and current_price < sma20:
-        reason = f"{indicator_info}  price below SMA20"
+        reason = f"{indicator_info} — price below SMA20"
         return "BUY", reason
 
     if rsi > 70 and sma20 is not None and current_price > sma20:
-        reason = f"{indicator_info}  price above SMA20"
+        reason = f"{indicator_info} — price above SMA20"
         return "SELL", reason
 
     # Neutral indicator reading — no override, but include info in reason
@@ -207,6 +226,7 @@ def analyze_portfolio(account_info=None, stock_prices=None):
     
     logger.info(f"Generated {len(recommendations)} recommendations")
     return recommendations
+
 
 def main():
     """Standalone execution to analyze portfolio and optionally execute orders."""
