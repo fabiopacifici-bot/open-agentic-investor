@@ -39,7 +39,7 @@ def load_data():
         # Only include recommendations that belong to the latest snapshot timestamp
         # Prefer recommendations tied to the latest snapshot_id (newer schema). Fall back to timestamp if missing.
         recent_recs = []
-        if snapshot and snapshot.get("id"):
+        if snapshot and snapshot["id"]:
             recent_recs = conn.execute(
                 "SELECT ticker, action, reason, price FROM recommendations WHERE snapshot_id = ? ORDER BY id DESC",
                 (snapshot["id"],)
