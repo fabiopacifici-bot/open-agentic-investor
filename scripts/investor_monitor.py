@@ -187,6 +187,22 @@ def run_cycle():
         logger.warning("No snapshot data found after run")
         return
 
+    # Prefer recommendations recorded in DB for this snapshot (robustness)
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        db_recs = conn.execute(
+            "SELECT ticker AS ticker, action AS action, reason AS reason, price AS current_price FROM recommendations WHERE snapshot_id = ?",
+            (snap["id"],)
+        ).fetchall()
+        conn.close()
+        if db_recs:
+            # Convert rows to list of dicts matching expected rec structure
+            recs = [dict(r) for r in db_recs]
+            logger.info(f"Loaded {len(recs)} recommendations from DB for snapshot {snap['id']}")
+    except Exception as e:
+        logger.warning(f"Failed to load recommendations from DB: {e}")
+
     # Check alerts
     alerts = check_alerts(snap, positions, recs)
     for alert in alerts:

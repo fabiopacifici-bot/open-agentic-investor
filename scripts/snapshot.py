@@ -46,12 +46,15 @@ def init_db(conn: sqlite3.Connection):
         );
         CREATE TABLE IF NOT EXISTS recommendations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_id INTEGER,
             timestamp TEXT,
             ticker TEXT,
             action TEXT,
             reason TEXT,
-            price REAL
+            price REAL,
+            FOREIGN KEY(snapshot_id) REFERENCES snapshots(id)
         );
+        CREATE INDEX IF NOT EXISTS idx_recommendations_snapshot ON recommendations(snapshot_id);
     """)
     conn.commit()
 
@@ -127,8 +130,8 @@ def run_snapshot():
 
     for rec in recs:
         conn.execute(
-            "INSERT INTO recommendations (timestamp, ticker, action, reason, price) VALUES (?,?,?,?,?)",
-            (ts, rec.get("ticker"), rec.get("action"), rec.get("reason"), rec.get("current_price", 0.0))
+            "INSERT INTO recommendations (snapshot_id, timestamp, ticker, action, reason, price) VALUES (?,?,?,?,?,?)",
+            (snapshot_id, ts, rec.get("ticker"), rec.get("action"), rec.get("reason"), rec.get("current_price", 0.0))
         )
     conn.commit()
     logger.info(f"Saved {len(recs)} recommendations")
