@@ -1,16 +1,87 @@
 {
+    "strategy": {
+        "note": "Long-term hold + average down. Total deposits: €4,900. Recovered from trail-stop losses in prior year (sold too early/late, missed recovery). Current strategy: hold through dips, average down on fundamentally strong stocks at historical lows. No panic sells.",
+        "trail_stop_lesson": "4% trail stops in prior year caused premature exits. Now holding through volatility unless fundamentals deteriorate."
+    },
     "portfolio": [
-        {"symbol": "SOUN_US_EQ",  "buy_threshold": 6.50,  "sell_threshold": 12.00},
-        {"symbol": "TEAM_US_EQ",  "buy_threshold": 65.00, "sell_threshold": 110.00},
-        {"symbol": "ORCL_US_EQ", "buy_threshold": 120.00, "sell_threshold": 175.00},
-        {"symbol": "QUBT_US_EQ", "buy_threshold": 6.00,  "sell_threshold": 12.00},
-        {"symbol": "AMD_US_EQ",  "buy_threshold": 160.00, "sell_threshold": 230.00},
-        {"symbol": "NVDA_US_EQ", "buy_threshold": 140.00, "sell_threshold": 200.00},
-        {"symbol": "TSM_US_EQ",  "buy_threshold": 320.00, "sell_threshold": 420.00},
-        {"symbol": "BIDU_US_EQ", "buy_threshold": 95.00,  "sell_threshold": 175.00},
-        {"symbol": "BABA_US_EQ", "buy_threshold": 110.00, "sell_threshold": 180.00},
-        {"symbol": "GME_US_EQ",  "buy_threshold": 18.00,  "sell_threshold": 30.00},
-        {"symbol": "EBAY_US_EQ", "buy_threshold": 70.00,  "sell_threshold": 105.00}
+        {
+            "symbol": "SOUN_US_EQ",
+            "buy_threshold": 6.50,
+            "sell_threshold": 12.00,
+            "avg_down_trigger": 6.75,
+            "strategy": "average-down",
+            "notes": "Large position. Currently recovering — bouncing back up. Will double down at €6.75 if it drops there. Strong conviction. RSI SELL signals to be ignored unless sell_threshold hit."
+        },
+        {
+            "symbol": "TEAM_US_EQ",
+            "buy_threshold": 65.00,
+            "sell_threshold": 110.00,
+            "strategy": "watch-and-average",
+            "notes": "At or near historical low. Fundamentally solid company. Waiting carefully before averaging down — watching for bounce confirmation. SELL signals are noise at this level."
+        },
+        {
+            "symbol": "ORCL_US_EQ",
+            "buy_threshold": 120.00,
+            "sell_threshold": 175.00,
+            "strategy": "hold",
+            "notes": "Deep from recent high but fundamentals strong. Likely to bounce. Hold — RSI SELL signals are short-term noise."
+        },
+        {
+            "symbol": "QUBT_US_EQ",
+            "buy_threshold": 6.00,
+            "sell_threshold": 12.00,
+            "strategy": "average-down",
+            "notes": "Speculative quantum play. Deep from entry. BUY signals valid — averaging down strategy applies."
+        },
+        {
+            "symbol": "AMD_US_EQ",
+            "buy_threshold": 160.00,
+            "sell_threshold": 230.00,
+            "strategy": "hold",
+            "notes": "Semiconductor leader. Hold through sector dip."
+        },
+        {
+            "symbol": "NVDA_US_EQ",
+            "buy_threshold": 140.00,
+            "sell_threshold": 200.00,
+            "strategy": "hold",
+            "notes": "AI/GPU leader. Hold."
+        },
+        {
+            "symbol": "TSM_US_EQ",
+            "buy_threshold": 320.00,
+            "sell_threshold": 420.00,
+            "strategy": "hold",
+            "notes": "Foundry monopoly. Long-term hold."
+        },
+        {
+            "symbol": "BIDU_US_EQ",
+            "buy_threshold": 95.00,
+            "sell_threshold": 175.00,
+            "strategy": "hold",
+            "notes": "China AI play. Small position. Hold."
+        },
+        {
+            "symbol": "BABA_US_EQ",
+            "buy_threshold": 110.00,
+            "sell_threshold": 180.00,
+            "strategy": "hold",
+            "notes": "China e-commerce recovery play. Small position. Hold."
+        },
+        {
+            "symbol": "GME_US_EQ",
+            "buy_threshold": 18.00,
+            "sell_threshold": 30.00,
+            "strategy": "hold",
+            "notes": "Speculative. Hold."
+        },
+        {
+            "symbol": "EBAY_US_EQ",
+            "buy_threshold": 70.00,
+            "sell_threshold": 105.00,
+            "strategy": "hold",
+            "notes": "Steady e-commerce. Hold."
+        }
     ],
     "alerts": {
         "pnl_change_threshold_pct": 3.0,
