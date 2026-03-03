@@ -35,7 +35,8 @@ from scripts.snapshot import run_snapshot
 from scripts.report_export import run_export
 from utils.logger import logger
 
-TELEGRAM_CHAT_ID = "6395145098"
+# Override with WATCHER_CHAT_ID env var
+TELEGRAM_CHAT_ID = os.environ.get("WATCHER_CHAT_ID", "6395145098")
 
 def notify_channel(text: str):
     """Send message via OpenClaw CLI (Telegram)."""
@@ -68,8 +69,12 @@ def send_report_file(filepath: str, caption: str = "📊 Portfolio Report"):
     else:
         logger.info(f"Report file sent: {filepath}")
 
-DB_PATH = Path(os.path.expanduser("~/Documents/Investments/portfolio.db"))
+# Override with INVESTMENTS_DB env var
+DB_PATH = Path(os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db")))
 BERLIN = ZoneInfo("Europe/Berlin")
+
+# Config
+ALERT_ON_DB_RECS = True  # If True, fall back to DB-stored recommendations when analyzer returned none
 
 MARKET_OPEN_H, MARKET_OPEN_M = 15, 30   # 15:30 Berlin
 MARKET_CLOSE_H, MARKET_CLOSE_M = 22, 0  # 22:00 Berlin
@@ -83,6 +88,10 @@ POSITION_MOVE_THRESHOLD  = 5.0       # % single position move alert
 last_pnl = None
 last_positions = {}
 last_summary_time = 0
+
+# In-memory sent-alerts tracking to avoid duplicates
+# Structure: { snapshot_id: set( "TICKER|ACTION" ) }
+sent_alerts_store: dict[int, set[str]] = {}
 
 
 def is_market_open() -> bool:
@@ -128,28 +137,35 @@ def format_summary(snap, positions) -> str:
     return "\n".join(lines)
 
 
-def check_alerts(snap, positions, recs) -> list[str]:
+def check_alerts(snap, positions, recs) -> list[tuple[str, str|None]]:
+    """Return list of tuples: (alert_text, dedup_key_or_None).
+    dedup_key is in the form TICKER|ACTION for BUY/SELL signals, None for other alerts.
+    """
     global last_pnl, last_positions
-    alerts = []
+    alerts: list[tuple[str, str|None]] = []
 
     # 1. BUY/SELL signals
     for rec in recs:
         action = rec.get("action")
-        ticker = rec.get("ticker", "").replace("_US_EQ", "")
+        ticker_raw = rec.get("ticker", "")
+        ticker = ticker_raw.replace("_US_EQ", "")
         price  = rec.get("current_price", 0)
         reason = rec.get("reason", "")
         icon   = "🟢" if action == "BUY" else "🔴"
-        alerts.append(f"{icon} *{action} Signal: {ticker}* @ €{price:.2f}\n_{reason}_")
+        text = f"{icon} *{action} Signal: {ticker}* @ €{price:.2f}\n_{reason}_"
+        dedup_key = f"{ticker}|{action}" if ticker and action else None
+        alerts.append((text, dedup_key))
 
     # 2. Portfolio P&L change
     if last_pnl is not None and snap:
         change = snap["pnl_pct"] - last_pnl
         if abs(change) >= PNL_CHANGE_THRESHOLD:
             direction = "📈" if change > 0 else "📉"
-            alerts.append(
+            alerts.append((
                 f"{direction} *Portfolio moved {change:+.2f}%* since last check\n"
-                f"Now: {snap['pnl_pct']:.2f}% | P&L: €{snap['pnl']:.2f}"
-            )
+                f"Now: {snap['pnl_pct']:.2f}% | P&L: €{snap['pnl']:.2f}",
+                None
+            ))
 
     # 3. Individual position moves
     for p in positions:
@@ -160,9 +176,10 @@ def check_alerts(snap, positions, recs) -> list[str]:
             if abs(move) >= POSITION_MOVE_THRESHOLD:
                 short = ticker.replace("_US_EQ", "")
                 direction = "📈" if move > 0 else "📉"
-                alerts.append(
-                    f"{direction} *{short} moved {move:+.2f}%* since last check → now {p['pnl_pct']:.2f}%"
-                )
+                alerts.append((
+                    f"{direction} *{short} moved {move:+.2f}%* since last check → now {p['pnl_pct']:.2f}%",
+                    None
+                ))
 
     # Update state
     if snap:
@@ -187,11 +204,55 @@ def run_cycle():
         logger.warning("No snapshot data found after run")
         return
 
-    # Check alerts
+    # Prefer recommendations recorded in DB for this snapshot (robustness)
+    analyzer_recs = recs if recs is not None else []
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        db_recs = conn.execute(
+            "SELECT ticker AS ticker, action AS action, reason AS reason, price AS current_price FROM recommendations WHERE snapshot_id = ?",
+            (snap["id"],)
+        ).fetchall()
+        conn.close()
+        db_recs = [dict(r) for r in db_recs] if db_recs else []
+    except Exception as e:
+        logger.warning(f"Failed to load recommendations from DB: {e}")
+        db_recs = []
+
+    # If analyzer returned no recs, optionally fall back to DB-backed recs
+    if (not analyzer_recs) and db_recs and ALERT_ON_DB_RECS:
+        recs = db_recs
+        logger.info(f"Using DB-backed recs for snapshot {snap['id']} — analyzer returned 0")
+    else:
+        recs = analyzer_recs
+
+    # Build alerts (with dedup keys)
     alerts = check_alerts(snap, positions, recs)
-    for alert in alerts:
-        notify_channel(alert)
-        logger.info(f"Alert sent: {alert[:60]}")
+
+    # Keep only the 10 most recent snapshot ids to bound memory
+    try:
+        keys_to_remove = sorted(sent_alerts_store.keys(), reverse=True)[10:]
+        for k in keys_to_remove:
+            sent_alerts_store.pop(k)
+    except Exception:
+        # Non-fatal pruning errors shouldn't stop alerts
+        pass
+
+    # Send alerts, skipping duplicates for BUY/SELL signals
+    for text, dedup_key in alerts:
+        skip = False
+        if dedup_key and snap and isinstance(snap.get("id"), int):
+            s_id = snap["id"]
+            sent_set = sent_alerts_store.setdefault(s_id, set())
+            if dedup_key in sent_set:
+                skip = True
+            else:
+                sent_set.add(dedup_key)
+        if skip:
+            logger.info(f"Skipping duplicate alert for {dedup_key} (snapshot {snap.get('id')})")
+            continue
+        notify_channel(text)
+        logger.info(f"Alert sent: {text[:60]}")
 
     # Periodic full summary during market hours
     now = time.time()

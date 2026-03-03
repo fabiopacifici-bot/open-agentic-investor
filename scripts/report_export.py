@@ -36,9 +36,28 @@ def load_data():
         positions = conn.execute(
             "SELECT * FROM positions WHERE snapshot_id=?", (snapshot["id"],)
         ).fetchall()
-        recent_recs = conn.execute(
-            "SELECT ticker, action, reason, price FROM recommendations ORDER BY id DESC LIMIT 50"
-        ).fetchall()
+        # Only include recommendations that belong to the latest snapshot timestamp
+        # Prefer recommendations tied to the latest snapshot_id (newer schema). Fall back to timestamp if missing.
+        recent_recs = []
+        if snapshot and snapshot.get("id"):
+            recent_recs = conn.execute(
+                "SELECT ticker, action, reason, price FROM recommendations WHERE snapshot_id = ? ORDER BY id DESC",
+                (snapshot["id"],)
+            ).fetchall()
+
+        if not recent_recs:
+            # Backward-compatible: try matching by timestamp
+            recent_recs = conn.execute(
+                "SELECT ticker, action, reason, price FROM recommendations WHERE timestamp = ? ORDER BY id DESC",
+                (snapshot["timestamp"],)
+            ).fetchall()
+
+        # If still empty, fall back to the most recent per-ticker
+        if not recent_recs:
+            recent_recs = conn.execute(
+                "SELECT ticker, action, reason, price FROM recommendations ORDER BY id DESC LIMIT 50"
+            ).fetchall()
+
         for r in recent_recs:
             if r["ticker"] not in recs:
                 recs[r["ticker"]] = {"action": r["action"], "reason": r["reason"], "price": r["price"]}
