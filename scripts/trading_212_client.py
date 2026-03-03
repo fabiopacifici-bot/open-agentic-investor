@@ -1,42 +1,81 @@
-import base64
 import os
 import requests
-from dotenv import load_dotenv
-
-# Load .env file
-load_dotenv()
+from credential_handler import get_credential
+from utils.logger import logger
 
 class Trading212Client:
-    API_BASE_URL = os.getenv("API_BASE_URL", "https://demo.trading212.com/api/v0")
-
     def __init__(self):
-        self.api_key = os.getenv("API_KEY")
-        self.api_secret = os.getenv("API_SECRET")
-        
-        if not self.api_key or not self.api_secret:
-            raise ValueError("API_KEY and API_SECRET must be set in the .env file.")
+        # Load credentials at runtime (after .env has been loaded by credential handler)
+        self.api_key = get_credential("API_KEY")
+        self.api_secret = get_credential("API_SECRET")
 
-        credentials = f"{self.api_key}:{self.api_secret}"
-        self.auth_header = {
-            "Authorization": "Basic " + base64.b64encode(credentials.encode()).decode()
+        # Resolve API base URL at runtime so environment overrides take effect
+        self.api_base_url = os.getenv("API_BASE_URL", "https://live.trading212.com/api/v0")
+
+        from utils.authentication import generate_auth_header
+        self.auth_header = generate_auth_header()
+
+    def fetch_account_balance(self):
+        """Fetch account cash balance from Trading 212 API.
+        
+        Returns:
+            dict: Account balance information
+            
+        Raises:
+            requests.HTTPError: If API request fails
+        """
+        endpoint = f"{self.api_base_url}/equity/account/cash"
+        logger.info("Fetching account balance...")
+        
+        try:
+            response = requests.get(endpoint, headers=self.auth_header, timeout=30)
+            logger.debug(f"Request Headers: {self.auth_header}")
+            logger.debug(f"Endpoint: {endpoint}")
+
+            if response.status_code == 200:
+                logger.info("Account balance retrieved successfully.")
+                return response.json()
+            else:
+                logger.error(f"Failed to fetch account balance: {response.status_code} {response.text}")
+                logger.debug(f"Response headers: {response.headers}")
+                response.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Network error fetching account balance: {e}")
+            raise
+
+    def place_order(self, ticker, quantity, action="BUY"):
+        """Place a market order on Trading 212.
+        
+        Args:
+            ticker: Stock ticker symbol
+            quantity: Number of shares to buy/sell
+            action: "BUY" or "SELL"
+            
+        Returns:
+            dict: Order response from API
+            
+        Raises:
+            requests.HTTPError: If order placement fails
+        """
+        endpoint = f"{self.api_base_url}/equity/orders/market"
+        payload = {
+            "instrumentCode": ticker,
+            "quantity": abs(quantity),  # Ensure positive quantity
+            "timeValidity": "DAY"
         }
 
-    def fetch_positions(self):
-        endpoint = f"{self.API_BASE_URL}/equity/positions"
-        response = requests.get(endpoint, headers=self.auth_header)
+        logger.info(f"Placing {action} order for {ticker} - Quantity: {quantity}")
+        logger.debug(f"Order payload: {payload}")
+        
+        try:
+            response = requests.post(endpoint, json=payload, headers=self.auth_header, timeout=30)
 
-        if response.status_code == 200:
-            print("Successful Response:")
-            print(response.json())
-            return response.json()
-        else:
-            print(f"Error {response.status_code}: {response.text}")
-            response.raise_for_status()
-
-if __name__ == "__main__":
-    client = Trading212Client()
-    try:
-        print("Testing /positions endpoint...")
-        client.fetch_positions()
-    except Exception as e:
-        print("Caught exception while testing /positions:", str(e))
+            if response.status_code in (200, 201):
+                logger.info(f"{action} order placed successfully for {ticker}.")
+                return response.json()
+            else:
+                logger.error(f"Order failed: {response.status_code} {response.text}")
+                response.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Network error placing order: {e}")
+            raise
