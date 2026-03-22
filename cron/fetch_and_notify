@@ -7,7 +7,7 @@ source /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor/v
 cd /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor
 
 # Fetch stock prices
-python scripts/fetch_prices.py > cron_output.log
+PYTHONPATH=/home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor python scripts/fetch_prices.py > cron_output.log
 
 # Notify channels about recommendations
-python scripts/notifier.py >> cron_output.log
+PYTHONPATH=/home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor python scripts/notifier.py >> cron_output.log
