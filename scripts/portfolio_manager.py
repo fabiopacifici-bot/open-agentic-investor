@@ -1,5 +1,6 @@
 from scripts.trading_212_client import Trading212Client
 from scripts.signals import calculate_rsi, calculate_sma, detect_volume_spike
+from scripts.fetch_daily_history import fetch_daily_history_for_tickers
 from utils.logger import logger
 import json
 import os
@@ -17,13 +18,14 @@ def load_portfolio_config():
         logger.error(f"Error loading config: {e}")
         return {"portfolio": []}
 
-DB_PATH = os.path.expanduser("~/Documents/Investments/portfolio.db")
+DB_PATH = os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db"))
+# Override with INVESTMENTS_DB env var
 
 
-def _fetch_price_history(ticker: str, limit: int = 30) -> list:
-    """Return up to *limit* historical current_price values for *ticker* from portfolio.db.
+def _fetch_price_history(ticker: str, limit: int = 100) -> list:
+    """Return up to *limit* daily close prices for *ticker* from price_history table.
 
-    Prices are ordered oldest → newest (by snapshot_id).
+    Prices are ordered oldest → newest (by date ASC).
     Returns an empty list if the DB or table is unavailable. Filters out NULLs and non-numeric values.
     """
     if not os.path.exists(DB_PATH):
@@ -33,26 +35,24 @@ def _fetch_price_history(ticker: str, limit: int = 30) -> list:
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT current_price
-            FROM positions
+            SELECT close
+            FROM price_history
             WHERE ticker = ?
-            ORDER BY snapshot_id DESC
+            ORDER BY date ASC
             LIMIT ?
             """,
             (ticker, limit),
         )
         rows = cur.fetchall()
         conn.close()
-        # Reverse so we get oldest → newest and coerce to floats, dropping NULLs
         prices = []
-        for row in reversed(rows):
+        for row in rows:
             v = row[0]
             if v is None:
                 continue
             try:
                 prices.append(float(v))
             except Exception:
-                # Skip non-numeric entries
                 continue
         return prices
     except Exception as e:
@@ -60,10 +60,9 @@ def _fetch_price_history(ticker: str, limit: int = 30) -> list:
         return []
 
 
-def _fetch_volume_history(ticker: str, limit: int = 30) -> list:
-    """Attempt to fetch historical volume values for ticker from portfolio.db.
+def _fetch_volume_history(ticker: str, limit: int = 100) -> list:
+    """Return up to *limit* daily volume values for *ticker* from price_history table.
 
-    The positions table may store volume; this helper will return an empty list when no volume column exists.
     Returns oldest → newest order and filters out NULLs.
     """
     if not os.path.exists(DB_PATH):
@@ -71,19 +70,12 @@ def _fetch_volume_history(ticker: str, limit: int = 30) -> list:
     try:
         conn = sqlite3.connect(DB_PATH)
         cur = conn.cursor()
-        # Check if volume column exists
-        cur.execute("PRAGMA table_info(positions)")
-        cols = [r[1] for r in cur.fetchall()]
-        if 'volume' not in cols:
-            conn.close()
-            return []
-
         cur.execute(
             """
             SELECT volume
-            FROM positions
+            FROM price_history
             WHERE ticker = ?
-            ORDER BY snapshot_id DESC
+            ORDER BY date ASC
             LIMIT ?
             """,
             (ticker, limit),
@@ -91,7 +83,7 @@ def _fetch_volume_history(ticker: str, limit: int = 30) -> list:
         rows = cur.fetchall()
         conn.close()
         volumes = []
-        for row in reversed(rows):
+        for row in rows:
             v = row[0]
             if v is None:
                 continue
@@ -150,6 +142,27 @@ def _build_indicator_reason(ticker: str, current_price: float) -> tuple:
     return None, indicator_info
 
 
+def _fetch_latest_pnl_pct(ticker: str, db_path: str = DB_PATH) -> "float | None":
+    """Return the most recent pnl_pct for *ticker* from the positions table, or None."""
+    if not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT pnl_pct FROM positions WHERE ticker=? ORDER BY snapshot_id DESC LIMIT 1",
+            (ticker,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        if row is None or row[0] is None:
+            return None
+        return float(row[0])
+    except Exception as e:
+        logger.warning(f"Could not fetch pnl_pct for {ticker}: {e}")
+        return None
+
+
 def analyze_portfolio(account_info=None, stock_prices=None):
     """Analyze portfolio and generate buy/sell recommendations based on thresholds.
     
@@ -163,6 +176,10 @@ def analyze_portfolio(account_info=None, stock_prices=None):
     if stock_prices is None:
         logger.warning("No stock prices provided, cannot generate recommendations")
         return []
+
+    # Fetch fresh daily history for all tickers before analysis
+    tickers = list(stock_prices.keys())
+    fetch_daily_history_for_tickers(tickers)
     
     config = load_portfolio_config()
     portfolio_config = {item['symbol']: item for item in config.get('portfolio', [])}
@@ -197,29 +214,39 @@ def analyze_portfolio(account_info=None, stock_prices=None):
 
         # Generate SELL recommendation if price is above sell threshold
         elif sell_threshold and current_price > sell_threshold:
-            base_reason = f"Price ${current_price:.2f} above sell threshold ${sell_threshold:.2f}"
-            reason = f"{base_reason} | {indicator_reason}" if indicator_reason else base_reason
-            recommendations.append({
-                "ticker": ticker,
-                "action": "SELL",
-                "quantity": 5,  # Default quantity, can be made configurable
-                "current_price": current_price,
-                "threshold": sell_threshold,
-                "reason": reason,
-            })
-            logger.info(f"SELL recommendation: {ticker} at ${current_price:.2f}")
+            pnl_pct = _fetch_latest_pnl_pct(ticker)
+            if pnl_pct is not None and pnl_pct < -5.0:
+                logger.info(f"SELL suppressed for {ticker}: pnl_pct={pnl_pct:.1f}% < -5%")
+            else:
+                base_reason = f"Price ${current_price:.2f} above sell threshold ${sell_threshold:.2f}"
+                reason = f"{base_reason} | {indicator_reason}" if indicator_reason else base_reason
+                recommendations.append({
+                    "ticker": ticker,
+                    "action": "SELL",
+                    "quantity": 5,  # Default quantity, can be made configurable
+                    "current_price": current_price,
+                    "threshold": sell_threshold,
+                    "reason": reason,
+                })
+                logger.info(f"SELL recommendation: {ticker} at ${current_price:.2f}")
 
         # No threshold trigger — check indicator-only signal
         elif indicator_action:
-            recommendations.append({
-                "ticker": ticker,
-                "action": indicator_action,
-                "quantity": 10 if indicator_action == "BUY" else 5,
-                "current_price": current_price,
-                "threshold": None,
-                "reason": indicator_reason,
-            })
-            logger.info(f"{indicator_action} signal (indicator): {ticker} — {indicator_reason}")
+            if indicator_action == "SELL":
+                pnl_pct = _fetch_latest_pnl_pct(ticker)
+                if pnl_pct is not None and pnl_pct < -5.0:
+                    logger.info(f"SELL suppressed for {ticker}: pnl_pct={pnl_pct:.1f}% < -5%")
+                    indicator_action = None
+            if indicator_action:
+                recommendations.append({
+                    "ticker": ticker,
+                    "action": indicator_action,
+                    "quantity": 10 if indicator_action == "BUY" else 5,
+                    "current_price": current_price,
+                    "threshold": None,
+                    "reason": indicator_reason,
+                })
+                logger.info(f"{indicator_action} signal (indicator): {ticker} — {indicator_reason}")
 
         else:
             logger.debug(f"HOLD: {ticker} at ${current_price:.2f} (buy: ${buy_threshold}, sell: ${sell_threshold})")
