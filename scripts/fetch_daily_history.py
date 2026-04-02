@@ -138,6 +138,9 @@ def fetch_daily_history_for_tickers(
                     f"[fetch_daily_history] Inserted {len(rows)} rows for {raw_ticker}."
                 )
 
+                # Rate limit compliance: 1 request per second for free tier
+                time.sleep(1.2)
+
             except Exception as e:
                 logger.error(
                     f"[fetch_daily_history] Failed for {raw_ticker}: {e}", exc_info=True
