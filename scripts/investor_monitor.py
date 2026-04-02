@@ -33,6 +33,7 @@ load_credentials()
 
 from scripts.snapshot import run_snapshot
 from scripts.report_export import run_export
+from scripts.notifier import should_notify, mark_notified, is_heartbeat_window
 from utils.logger import logger
 
 # Override with WATCHER_CHAT_ID env var
@@ -238,19 +239,25 @@ def run_cycle():
         # Non-fatal pruning errors shouldn't stop alerts
         pass
 
-    # Send alerts, skipping duplicates for BUY/SELL signals
+    # Send alerts with persistent deduplication
     for text, dedup_key in alerts:
-        skip = False
-        if dedup_key and snap and isinstance(snap.get("id"), int):
-            s_id = snap["id"]
-            sent_set = sent_alerts_store.setdefault(s_id, set())
-            if dedup_key in sent_set:
-                skip = True
-            else:
-                sent_set.add(dedup_key)
-        if skip:
-            logger.info(f"Skipping duplicate alert for {dedup_key} (snapshot {snap.get('id')})")
-            continue
+        # Persistent dedup for BUY/SELL signals (4-hour cooldown)
+        if dedup_key:
+            # Also guard with in-memory store (per-snapshot granularity)
+            if snap and isinstance(snap.get("id"), int):
+                s_id = snap["id"]
+                sent_set = sent_alerts_store.setdefault(s_id, set())
+                if dedup_key in sent_set:
+                    logger.info(f"Skipping duplicate alert for {dedup_key} (in-memory, snapshot {s_id})")
+                    continue
+            # Check persistent file-based cooldown (4h)
+            if not should_notify(dedup_key, 4):
+                logger.info(f"Skipping duplicate alert for {dedup_key} (4h persistent cooldown)")
+                continue
+            # Mark as sent in both stores
+            if snap and isinstance(snap.get("id"), int):
+                sent_alerts_store.setdefault(snap["id"], set()).add(dedup_key)
+            mark_notified(dedup_key)
         notify_channel(text)
         logger.info(f"Alert sent: {text[:60]}")
 

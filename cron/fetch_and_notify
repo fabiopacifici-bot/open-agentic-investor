@@ -6,8 +6,26 @@ source /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor/v
 # Navigate to project directory
 cd /home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor
 
-# Fetch stock prices
-PYTHONPATH=/home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor python scripts/fetch_prices.py > cron_output.log
+# Run snapshot (fetch prices + analyze portfolio) and send dedup-guarded notifications
+PYTHONPATH=/home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor python -c "
+import sys, os
+sys.path.insert(0, '.')
+from credential_handler import load_environment
+load_environment()
 
-# Notify channels about recommendations
-PYTHONPATH=/home/pacificDev/.openclaw/workspace/repositories/open-agentic-investor python scripts/notifier.py >> cron_output.log
+from scripts.snapshot import run_snapshot
+from scripts.notifier import notify_channel, is_heartbeat_window, should_notify, mark_notified
+
+snapshot_id, recs = run_snapshot()
+print(f'Snapshot {snapshot_id}: {len(recs)} recommendations')
+
+# Send BUY/SELL recommendations (each deduped with 4h cooldown)
+if recs:
+    notify_channel(recs)   # dedup logic lives inside notify_channel
+else:
+    print('No recommendations — skipping notification')
+
+# Daily heartbeat summary (once per day, 08:55-09:10 CET)
+if is_heartbeat_window() and should_notify('heartbeat', 24):
+    notify_channel('📊 Daily investor check-in: portfolio analyzed, no new signals.', signal_key='heartbeat')
+" >> cron_output.log 2>&1
