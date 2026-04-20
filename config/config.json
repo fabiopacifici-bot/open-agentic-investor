@@ -1,16 +1,65 @@
 {
     "portfolio": [
-        {"symbol": "SOUN_US_EQ",  "buy_threshold": 6.50,  "sell_threshold": 12.00},
-        {"symbol": "TEAM_US_EQ",  "buy_threshold": 65.00, "sell_threshold": 110.00},
-        {"symbol": "ORCL_US_EQ", "buy_threshold": 120.00, "sell_threshold": 175.00},
-        {"symbol": "QUBT_US_EQ", "buy_threshold": 6.00,  "sell_threshold": 12.00},
-        {"symbol": "AMD_US_EQ",  "buy_threshold": 160.00, "sell_threshold": 230.00},
-        {"symbol": "NVDA_US_EQ", "buy_threshold": 140.00, "sell_threshold": 200.00},
-        {"symbol": "TSM_US_EQ",  "buy_threshold": 320.00, "sell_threshold": 420.00},
-        {"symbol": "BIDU_US_EQ", "buy_threshold": 95.00,  "sell_threshold": 175.00},
-        {"symbol": "BABA_US_EQ", "buy_threshold": 110.00, "sell_threshold": 180.00},
-        {"symbol": "GME_US_EQ",  "buy_threshold": 18.00,  "sell_threshold": 30.00},
-        {"symbol": "EBAY_US_EQ", "buy_threshold": 70.00,  "sell_threshold": 105.00}
+        {
+            "symbol": "SOUN_US_EQ",
+            "buy_threshold": 7.0,
+            "sell_threshold": 11.0
+        },
+        {
+            "symbol": "TEAM_US_EQ",
+            "buy_threshold": 63.84,
+            "sell_threshold": 95.0
+        },
+        {
+            "symbol": "ORCL_US_EQ",
+            "buy_threshold": 158.09,
+            "sell_threshold": 210.79
+        },
+        {
+            "symbol": "QUBT_US_EQ",
+            "buy_threshold": 8.0,
+            "sell_threshold": 14.0
+        },
+        {
+            "symbol": "AMD_US_EQ",
+            "buy_threshold": 245.0,
+            "sell_threshold": 320.0
+        },
+        {
+            "symbol": "NVDA_US_EQ",
+            "buy_threshold": 177.32,
+            "sell_threshold": 236.43
+        },
+        {
+            "symbol": "TSM_US_EQ",
+            "buy_threshold": 340.0,
+            "sell_threshold": 430.0
+        },
+        {
+            "symbol": "BIDU_US_EQ",
+            "buy_threshold": 115.0,
+            "sell_threshold": 160.0
+        },
+        {
+            "symbol": "BABA_US_EQ",
+            "buy_threshold": 119.47,
+            "sell_threshold": 170.0
+        },
+        {
+            "symbol": "GME_US_EQ",
+            "buy_threshold": 21.93,
+            "sell_threshold": 30.0
+        },
+        {
+            "symbol": "EBAY_US_EQ",
+            "buy_threshold": 79.2,
+            "sell_threshold": 125.0
+        },
+        {
+            "symbol": "RCLF_US_EQ",
+            "sell_threshold": 1.74,
+            "buy_threshold": 1.3
+        }
     ],
     "alerts": {
         "pnl_change_threshold_pct": 3.0,
