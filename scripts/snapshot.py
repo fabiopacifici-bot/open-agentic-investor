@@ -14,7 +14,7 @@ import json
 from credential_handler import load_environment as load_credentials
 from scripts.fetch_prices import fetch_portfolio_data
 from scripts.fetch_account_info import fetch_account_info
-from scripts.portfolio_manager import analyze_portfolio
+from scripts.portfolio_manager import analyze_portfolio, auto_calibrate_thresholds
 from utils.logger import logger
 
 # Override with INVESTMENTS_DIR env var
@@ -198,6 +198,17 @@ def run_snapshot():
 
     # write validation log
     _append_validation_log(ts, total_received, total_saved, total_dropped)
+
+    # Auto-calibrate thresholds based on current positions
+    try:
+        positions_for_calibration = [
+            {"ticker": p.get("ticker"), "avg_price": float(p.get("averagePrice") or 0), "current_price": float(p.get("currentPrice") or 0)}
+            for p in raw_positions
+            if p.get("ticker") and p.get("averagePrice") and p.get("currentPrice")
+        ]
+        auto_calibrate_thresholds(positions_for_calibration, db_path=str(DB_PATH))
+    except Exception as e:
+        logger.error(f"Auto-calibration failed: {e}")
 
     # Analyze and store recommendations
     try:

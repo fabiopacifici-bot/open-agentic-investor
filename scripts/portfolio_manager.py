@@ -2,9 +2,123 @@ from scripts.trading_212_client import Trading212Client
 from scripts.signals import calculate_rsi, calculate_sma, detect_volume_spike
 from scripts.fetch_daily_history import fetch_daily_history_for_tickers
 from utils.logger import logger
+from datetime import datetime
 import json
 import os
 import sqlite3
+
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
+DB_PATH = os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db"))
+
+
+def save_portfolio_config(config: dict):
+    """Atomically write config back to config.json."""
+    import tempfile
+    tmp_path = CONFIG_PATH + ".tmp"
+    try:
+        with open(tmp_path, 'w') as f:
+            json.dump(config, f, indent=4)
+        os.replace(tmp_path, CONFIG_PATH)
+        logger.info("config.json updated successfully")
+    except Exception as e:
+        logger.error(f"Failed to write config.json: {e}")
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+
+def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
+    """
+    Auto-calibrate buy/sell thresholds based on:
+    1. Position avg_price changes → set buy=avg*0.90, sell=avg*1.20
+    2. Trailing stop → sell threshold = max(current sell, peak_price * 0.85)
+
+    Skips tickers with "manual": true in config.
+    """
+    if not positions:
+        return
+
+    config = load_portfolio_config()
+    portfolio_map = {item['symbol']: item for item in config.get('portfolio', [])}
+    changed = False
+
+    conn = sqlite3.connect(db_path)
+
+    for pos in positions:
+        ticker = pos.get('ticker')
+        avg_price = pos.get('avg_price', 0.0) or 0.0
+        current_price = pos.get('current_price', 0.0) or 0.0
+
+        if not ticker or not avg_price or not current_price:
+            continue
+
+        cfg = portfolio_map.get(ticker)
+        if not cfg:
+            # New position not in config — add it
+            cfg = {"symbol": ticker}
+            portfolio_map[ticker] = cfg
+            config['portfolio'].append(cfg)
+
+        # Skip manual overrides
+        if cfg.get('manual'):
+            logger.debug(f"Skipping auto-calibrate for {ticker} (manual=true)")
+            continue
+
+        now = datetime.utcnow().isoformat()
+
+        # --- 1. Recalibrate on avg_price change ---
+        row = conn.execute(
+            "SELECT last_avg_price FROM avg_price_history WHERE ticker=?", (ticker,)
+        ).fetchone()
+        last_avg = row[0] if row else None
+
+        if last_avg is None or abs(avg_price - last_avg) > 0.01:
+            new_buy = round(avg_price * 0.90, 2)
+            new_sell = round(avg_price * 1.20, 2)
+
+            # Only lower sell threshold if trailing stop isn't higher
+            current_sell = cfg.get('sell_threshold', 0)
+            if new_sell > current_sell:
+                cfg['sell_threshold'] = new_sell
+                changed = True
+                logger.info(f"Auto-calibrated {ticker}: sell=${new_sell} (avg_price={avg_price:.2f})")
+
+            cfg['buy_threshold'] = new_buy
+            changed = True
+            logger.info(f"Auto-calibrated {ticker}: buy=${new_buy} (avg_price={avg_price:.2f})")
+
+            conn.execute(
+                "INSERT OR REPLACE INTO avg_price_history (ticker, last_avg_price, updated_at) VALUES (?,?,?)",
+                (ticker, avg_price, now)
+            )
+
+        # --- 2. Trailing stop: sell = max(sell_threshold, peak * 0.85) ---
+        peak_row = conn.execute(
+            "SELECT high FROM price_highs WHERE ticker=?", (ticker,)
+        ).fetchone()
+        peak = peak_row[0] if peak_row else current_price
+
+        if current_price > peak:
+            peak = current_price
+            conn.execute(
+                "INSERT OR REPLACE INTO price_highs (ticker, high, updated_at) VALUES (?,?,?)",
+                (ticker, peak, now)
+            )
+            logger.info(f"New peak for {ticker}: ${peak:.2f}")
+
+        trailing_sell = round(peak * 0.85, 2)
+        if trailing_sell > cfg.get('sell_threshold', 0):
+            cfg['sell_threshold'] = trailing_sell
+            changed = True
+            logger.info(f"Trailing stop updated {ticker}: new sell=${trailing_sell} (peak=${peak:.2f})")
+
+    conn.commit()
+    conn.close()
+
+    if changed:
+        save_portfolio_config(config)
+
 
 def load_portfolio_config():
     """Load portfolio configuration with buy/sell thresholds."""
@@ -17,10 +131,6 @@ def load_portfolio_config():
     except Exception as e:
         logger.error(f"Error loading config: {e}")
         return {"portfolio": []}
-
-DB_PATH = os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db"))
-# Override with INVESTMENTS_DB env var
-
 
 def _fetch_price_history(ticker: str, limit: int = 100) -> list:
     """Return up to *limit* daily close prices for *ticker* from price_history table.
