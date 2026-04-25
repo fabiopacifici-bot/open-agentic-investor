@@ -22,8 +22,8 @@
         },
         {
             "symbol": "AMD_US_EQ",
-            "buy_threshold": 245.0,
-            "sell_threshold": 320.0
+            "buy_threshold": 290.88,
+            "sell_threshold": 387.83
         },
         {
             "symbol": "NVDA_US_EQ",
