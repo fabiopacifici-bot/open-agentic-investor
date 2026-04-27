@@ -57,7 +57,7 @@
         },
         {
             "symbol": "RCLF_US_EQ",
-            "sell_threshold": 1.74,
+            "sell_threshold": 2.12,
             "buy_threshold": 1.3
         }
     ],
