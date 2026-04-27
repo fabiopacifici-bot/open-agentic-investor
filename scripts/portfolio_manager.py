@@ -7,16 +7,19 @@ import json
 import os
 import sqlite3
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
-DB_PATH = os.environ.get("INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db"))
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.json")
+DB_PATH = os.environ.get(
+    "INVESTMENTS_DB", os.path.expanduser("~/Documents/Investments/portfolio.db")
+)
 
 
 def save_portfolio_config(config: dict):
     """Atomically write config back to config.json."""
     import tempfile
+
     tmp_path = CONFIG_PATH + ".tmp"
     try:
-        with open(tmp_path, 'w') as f:
+        with open(tmp_path, "w") as f:
             json.dump(config, f, indent=4)
         os.replace(tmp_path, CONFIG_PATH)
         logger.info("config.json updated successfully")
@@ -40,15 +43,15 @@ def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
         return
 
     config = load_portfolio_config()
-    portfolio_map = {item['symbol']: item for item in config.get('portfolio', [])}
+    portfolio_map = {item["symbol"]: item for item in config.get("portfolio", [])}
     changed = False
 
     conn = sqlite3.connect(db_path)
 
     for pos in positions:
-        ticker = pos.get('ticker')
-        avg_price = pos.get('avg_price', 0.0) or 0.0
-        current_price = pos.get('current_price', 0.0) or 0.0
+        ticker = pos.get("ticker")
+        avg_price = pos.get("avg_price", 0.0) or 0.0
+        current_price = pos.get("current_price", 0.0) or 0.0
 
         if not ticker or not avg_price or not current_price:
             continue
@@ -58,10 +61,10 @@ def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
             # New position not in config — add it
             cfg = {"symbol": ticker}
             portfolio_map[ticker] = cfg
-            config['portfolio'].append(cfg)
+            config["portfolio"].append(cfg)
 
         # Skip manual overrides
-        if cfg.get('manual'):
+        if cfg.get("manual"):
             logger.debug(f"Skipping auto-calibrate for {ticker} (manual=true)")
             continue
 
@@ -78,19 +81,23 @@ def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
             new_sell = round(avg_price * 1.20, 2)
 
             # Only lower sell threshold if trailing stop isn't higher
-            current_sell = cfg.get('sell_threshold', 0)
+            current_sell = cfg.get("sell_threshold", 0)
             if new_sell > current_sell:
-                cfg['sell_threshold'] = new_sell
+                cfg["sell_threshold"] = new_sell
                 changed = True
-                logger.info(f"Auto-calibrated {ticker}: sell=${new_sell} (avg_price={avg_price:.2f})")
+                logger.info(
+                    f"Auto-calibrated {ticker}: sell=${new_sell} (avg_price={avg_price:.2f})"
+                )
 
-            cfg['buy_threshold'] = new_buy
+            cfg["buy_threshold"] = new_buy
             changed = True
-            logger.info(f"Auto-calibrated {ticker}: buy=${new_buy} (avg_price={avg_price:.2f})")
+            logger.info(
+                f"Auto-calibrated {ticker}: buy=${new_buy} (avg_price={avg_price:.2f})"
+            )
 
             conn.execute(
                 "INSERT OR REPLACE INTO avg_price_history (ticker, last_avg_price, updated_at) VALUES (?,?,?)",
-                (ticker, avg_price, now)
+                (ticker, avg_price, now),
             )
 
         # --- 2. Trailing stop: sell = max(sell_threshold, peak * 0.85) ---
@@ -103,15 +110,17 @@ def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
             peak = current_price
             conn.execute(
                 "INSERT OR REPLACE INTO price_highs (ticker, high, updated_at) VALUES (?,?,?)",
-                (ticker, peak, now)
+                (ticker, peak, now),
             )
             logger.info(f"New peak for {ticker}: ${peak:.2f}")
 
         trailing_sell = round(peak * 0.85, 2)
-        if trailing_sell > cfg.get('sell_threshold', 0):
-            cfg['sell_threshold'] = trailing_sell
+        if trailing_sell > cfg.get("sell_threshold", 0):
+            cfg["sell_threshold"] = trailing_sell
             changed = True
-            logger.info(f"Trailing stop updated {ticker}: new sell=${trailing_sell} (peak=${peak:.2f})")
+            logger.info(
+                f"Trailing stop updated {ticker}: new sell=${trailing_sell} (peak=${peak:.2f})"
+            )
 
     conn.commit()
     conn.close()
@@ -122,15 +131,18 @@ def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
 
 def load_portfolio_config():
     """Load portfolio configuration with buy/sell thresholds."""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "config.json")
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config = json.load(f)
-            logger.info(f"Loaded portfolio config with {len(config.get('portfolio', []))} stocks")
+            logger.info(
+                f"Loaded portfolio config with {len(config.get('portfolio', []))} stocks"
+            )
             return config
     except Exception as e:
         logger.error(f"Error loading config: {e}")
         return {"portfolio": []}
+
 
 def _fetch_price_history(ticker: str, limit: int = 100) -> list:
     """Return up to *limit* daily close prices for *ticker* from price_history table.
@@ -275,11 +287,11 @@ def _fetch_latest_pnl_pct(ticker: str, db_path: str = DB_PATH) -> "float | None"
 
 def analyze_portfolio(account_info=None, stock_prices=None):
     """Analyze portfolio and generate buy/sell recommendations based on thresholds.
-    
+
     Args:
         account_info: Account balance and metadata (optional, for future use)
         stock_prices: Dictionary of current stock prices {ticker: price}
-    
+
     Returns:
         list: List of recommendation dictionaries with ticker, action, quantity, price, reason
     """
@@ -290,54 +302,72 @@ def analyze_portfolio(account_info=None, stock_prices=None):
     # Fetch fresh daily history for all tickers before analysis
     tickers = list(stock_prices.keys())
     fetch_daily_history_for_tickers(tickers)
-    
+
     config = load_portfolio_config()
-    portfolio_config = {item['symbol']: item for item in config.get('portfolio', [])}
-    
+    portfolio_config = {item["symbol"]: item for item in config.get("portfolio", [])}
+
     recommendations = []
-    
+
     for ticker, current_price in stock_prices.items():
         if ticker not in portfolio_config:
             logger.debug(f"No threshold config for {ticker}, skipping")
             continue
-        
+
         thresholds = portfolio_config[ticker]
-        buy_threshold = thresholds.get('buy_threshold')
-        sell_threshold = thresholds.get('sell_threshold')
-        
+        buy_threshold = thresholds.get("buy_threshold")
+        sell_threshold = thresholds.get("sell_threshold")
+
         # --- Indicator-based signals ---
-        indicator_action, indicator_reason = _build_indicator_reason(ticker, current_price)
+        indicator_action, indicator_reason = _build_indicator_reason(
+            ticker, current_price
+        )
 
         # Generate BUY recommendation if price is below buy threshold
         if buy_threshold and current_price < buy_threshold:
-            base_reason = f"Price ${current_price:.2f} below buy threshold ${buy_threshold:.2f}"
-            reason = f"{base_reason} | {indicator_reason}" if indicator_reason else base_reason
-            recommendations.append({
-                "ticker": ticker,
-                "action": "BUY",
-                "quantity": 10,  # Default quantity, can be made configurable
-                "current_price": current_price,
-                "threshold": buy_threshold,
-                "reason": reason,
-            })
+            base_reason = (
+                f"Price ${current_price:.2f} below buy threshold ${buy_threshold:.2f}"
+            )
+            reason = (
+                f"{base_reason} | {indicator_reason}"
+                if indicator_reason
+                else base_reason
+            )
+            recommendations.append(
+                {
+                    "ticker": ticker,
+                    "action": "BUY",
+                    "quantity": 10,  # Default quantity, can be made configurable
+                    "current_price": current_price,
+                    "threshold": buy_threshold,
+                    "reason": reason,
+                }
+            )
             logger.info(f"BUY recommendation: {ticker} at ${current_price:.2f}")
 
         # Generate SELL recommendation if price is above sell threshold
         elif sell_threshold and current_price > sell_threshold:
             pnl_pct = _fetch_latest_pnl_pct(ticker)
             if pnl_pct is not None and pnl_pct < -5.0:
-                logger.info(f"SELL suppressed for {ticker}: pnl_pct={pnl_pct:.1f}% < -5%")
+                logger.info(
+                    f"SELL suppressed for {ticker}: pnl_pct={pnl_pct:.1f}% < -5%"
+                )
             else:
                 base_reason = f"Price ${current_price:.2f} above sell threshold ${sell_threshold:.2f}"
-                reason = f"{base_reason} | {indicator_reason}" if indicator_reason else base_reason
-                recommendations.append({
-                    "ticker": ticker,
-                    "action": "SELL",
-                    "quantity": 5,  # Default quantity, can be made configurable
-                    "current_price": current_price,
-                    "threshold": sell_threshold,
-                    "reason": reason,
-                })
+                reason = (
+                    f"{base_reason} | {indicator_reason}"
+                    if indicator_reason
+                    else base_reason
+                )
+                recommendations.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "quantity": 5,  # Default quantity, can be made configurable
+                        "current_price": current_price,
+                        "threshold": sell_threshold,
+                        "reason": reason,
+                    }
+                )
                 logger.info(f"SELL recommendation: {ticker} at ${current_price:.2f}")
 
         # No threshold trigger — check indicator-only signal
@@ -345,22 +375,30 @@ def analyze_portfolio(account_info=None, stock_prices=None):
             if indicator_action == "SELL":
                 pnl_pct = _fetch_latest_pnl_pct(ticker)
                 if pnl_pct is not None and pnl_pct < -5.0:
-                    logger.info(f"SELL suppressed for {ticker}: pnl_pct={pnl_pct:.1f}% < -5%")
+                    logger.info(
+                        f"SELL suppressed for {ticker}: pnl_pct={pnl_pct:.1f}% < -5%"
+                    )
                     indicator_action = None
             if indicator_action:
-                recommendations.append({
-                    "ticker": ticker,
-                    "action": indicator_action,
-                    "quantity": 10 if indicator_action == "BUY" else 5,
-                    "current_price": current_price,
-                    "threshold": None,
-                    "reason": indicator_reason,
-                })
-                logger.info(f"{indicator_action} signal (indicator): {ticker} — {indicator_reason}")
+                recommendations.append(
+                    {
+                        "ticker": ticker,
+                        "action": indicator_action,
+                        "quantity": 10 if indicator_action == "BUY" else 5,
+                        "current_price": current_price,
+                        "threshold": None,
+                        "reason": indicator_reason,
+                    }
+                )
+                logger.info(
+                    f"{indicator_action} signal (indicator): {ticker} — {indicator_reason}"
+                )
 
         else:
-            logger.debug(f"HOLD: {ticker} at ${current_price:.2f} (buy: ${buy_threshold}, sell: ${sell_threshold})")
-    
+            logger.debug(
+                f"HOLD: {ticker} at ${current_price:.2f} (buy: ${buy_threshold}, sell: ${sell_threshold})"
+            )
+
     logger.info(f"Generated {len(recommendations)} recommendations")
     return recommendations
 
@@ -369,54 +407,61 @@ def main():
     """Standalone execution to analyze portfolio and optionally execute orders."""
     from scripts.fetch_prices import fetch_stock_prices
     from scripts.fetch_account_info import fetch_account_info
-    
+
     try:
         # Fetch current data
         logger.info("Fetching account info...")
         account_info = fetch_account_info()
-        
+
         logger.info("Fetching stock prices...")
         stock_prices = fetch_stock_prices()
-        
+
         # Analyze and get recommendations
         logger.info("Analyzing portfolio...")
         recommendations = analyze_portfolio(account_info, stock_prices)
-        
+
         if not recommendations:
             print("No buy/sell recommendations at this time.")
             return
-        
+
         # Display recommendations
         print("\n=== Portfolio Recommendations ===")
         for rec in recommendations:
             print(f"\n{rec['action']} {rec['ticker']}")
             print(f"  Current Price: ${rec['current_price']:.2f}")
-            print(f"  Threshold: ${rec['threshold']:.2f}")
+            threshold_display = (
+                f"${rec['threshold']:.2f}" if rec["threshold"] is not None else "N/A"
+            )
+            print(f"  Threshold: {threshold_display}")
             print(f"  Quantity: {rec['quantity']}")
             print(f"  Reason: {rec['reason']}")
-        
+
         # Ask for confirmation before placing orders
         response = input("\nExecute these orders? (yes/no): ").strip().lower()
-        
-        if response == 'yes':
+
+        if response == "yes":
             client = Trading212Client()
             for rec in recommendations:
                 try:
                     order_response = client.place_order(
                         ticker=rec["ticker"],
                         quantity=rec["quantity"],
-                        action=rec["action"]
+                        action=rec["action"],
                     )
-                    print(f"✓ Order placed for {rec['ticker']} ({rec['action']}):", order_response)
+                    print(
+                        f"✓ Order placed for {rec['ticker']} ({rec['action']}):",
+                        order_response,
+                    )
                 except Exception as e:
                     logger.error(f"Error placing order for {rec['ticker']}: {e}")
                     print(f"✗ Error placing order for {rec['ticker']}: {e}")
         else:
             print("Orders cancelled by user.")
-    
+
     except Exception as e:
         logger.error(f"Error in portfolio analysis: {e}")
         raise
+
 
 if __name__ == "__main__":
     main()
