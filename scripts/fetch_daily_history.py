@@ -13,6 +13,8 @@ import os
 import re
 import sqlite3
 import logging
+import time
+import time
 from datetime import date
 
 import requests
@@ -48,9 +50,7 @@ def _today_row_exists(conn: sqlite3.Connection, ticker: str) -> bool:
     return cur.fetchone() is not None
 
 
-def fetch_daily_history_for_tickers(
-    tickers: list, db_path: str = DB_PATH
-) -> None:
+def fetch_daily_history_for_tickers(tickers: list, db_path: str = DB_PATH) -> None:
     """Fetch and cache daily close/volume for every ticker in *tickers*.
 
     - Skips tickers whose today-row already exists (cache).
@@ -94,10 +94,14 @@ def fetch_daily_history_for_tickers(
             av_ticker = _clean_ticker(raw_ticker)
             try:
                 if _today_row_exists(conn, raw_ticker):
-                    logger.debug(f"[fetch_daily_history] Cache hit for {raw_ticker} — skipping.")
+                    logger.debug(
+                        f"[fetch_daily_history] Cache hit for {raw_ticker} — skipping."
+                    )
                     continue
 
-                logger.info(f"[fetch_daily_history] Fetching {av_ticker} from Alpha Vantage…")
+                logger.info(
+                    f"[fetch_daily_history] Fetching {av_ticker} from Alpha Vantage…"
+                )
                 resp = requests.get(
                     AV_BASE,
                     params={
