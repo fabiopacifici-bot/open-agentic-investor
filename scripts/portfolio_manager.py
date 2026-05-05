@@ -47,6 +47,18 @@ def auto_calibrate_thresholds(positions: list, db_path: str = DB_PATH):
     changed = False
 
     conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS avg_price_history (
+            ticker          TEXT PRIMARY KEY,
+            last_avg_price  REAL NOT NULL,
+            updated_at      TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS price_highs (
+            ticker      TEXT PRIMARY KEY,
+            high        REAL NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+    """)
 
     for pos in positions:
         ticker = pos.get("ticker")
