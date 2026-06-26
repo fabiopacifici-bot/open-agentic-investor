@@ -257,7 +257,7 @@ def _fetch_thirty_day_high(ticker: str, db_path: str = DB_PATH) -> "float | None
         )
         row = cur.fetchone()
         conn.close()
-        if row is None or bow[0] is None:
+        if row is None or row[0] is None:
             return None
         return float(row[0])
     except Exception as e:
