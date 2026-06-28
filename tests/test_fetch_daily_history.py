@@ -2,7 +2,7 @@ import sqlite3
 import os
 import tempfile
 import json
-from skills.open_agentic_investor.scripts import fetch_daily_incremental as fdi
+from scripts import fetch_daily_incremental as fdi
 
 
 def create_db_with_price_history(db_path):

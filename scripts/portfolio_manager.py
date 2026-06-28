@@ -1,5 +1,5 @@
 from scripts.trading_212_client import Trading212Client
-from scripts.signals import calculate_rsi, calculate_sma, detect_volume_spike
+from scripts.signals import calculate_rsi, calculate_sma, detect_volume_spike, check_trailing_stop_loss
 from scripts.fetch_daily_history import fetch_daily_history_for_tickers
 from utils.logger import logger
 from datetime import datetime
@@ -172,7 +172,7 @@ def _fetch_price_history(ticker: str, limit: int = 100) -> list:
             SELECT close
             FROM price_history
             WHERE ticker = ?
-            ORDER BY date ASC
+            ORDER BY date DESC
             LIMIT ?
             """,
             (ticker, limit),
@@ -180,7 +180,7 @@ def _fetch_price_history(ticker: str, limit: int = 100) -> list:
         rows = cur.fetchall()
         conn.close()
         prices = []
-        for row in rows:
+        for row in reversed(rows):  # reverse so oldest→newest for RSI/SMA
             v = row[0]
             if v is None:
                 continue
@@ -209,7 +209,7 @@ def _fetch_volume_history(ticker: str, limit: int = 100) -> list:
             SELECT volume
             FROM price_history
             WHERE ticker = ?
-            ORDER BY date ASC
+            ORDER BY date DESC
             LIMIT ?
             """,
             (ticker, limit),
@@ -217,7 +217,7 @@ def _fetch_volume_history(ticker: str, limit: int = 100) -> list:
         rows = cur.fetchall()
         conn.close()
         volumes = []
-        for row in rows:
+        for row in reversed(rows):  # reverse so oldest→newest for spike detection
             v = row[0]
             if v is None:
                 continue
@@ -229,6 +229,40 @@ def _fetch_volume_history(ticker: str, limit: int = 100) -> list:
     except Exception as e:
         logger.warning(f"Could not fetch volume history for {ticker}: {e}")
         return []
+
+
+
+def _fetch_thirty_day_high(ticker: str, db_path: str = DB_PATH) -> "float | None":
+    """Return the highest closing price for *ticker* over the most recent 30 trading days.
+
+    Returns None if the DB is unavailable or the ticker has no history.
+    """
+    if not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT MAX(close)
+            FROM (
+                SELECT close
+                FROM price_history
+                WHERE ticker = ? AND close IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 30
+            )
+            """,
+            (ticker,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        if row is None or row[0] is None:
+            return None
+        return float(row[0])
+    except Exception as e:
+        logger.warning(f"Could not fetch 30-day high for {ticker}: {e}")
+        return None
 
 
 def _build_indicator_reason(ticker: str, current_price: float) -> tuple:
@@ -297,6 +331,27 @@ def _fetch_latest_pnl_pct(ticker: str, db_path: str = DB_PATH) -> "float | None"
         return None
 
 
+
+def _fetch_avg_price(ticker: str, db_path: str = DB_PATH) -> 'float | None':
+    """Return the most recent avg_price for *ticker* from the positions table, or None."""
+    if not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT avg_price FROM positions WHERE ticker=? AND avg_price > 0 ORDER BY snapshot_id DESC LIMIT 1",
+            (ticker,),
+        )
+        row = cur.fetchone()
+        conn.close()
+        if row is None or row[0] is None:
+            return None
+        return float(row[0])
+    except Exception as e:
+        logger.warning(f"Could not fetch avg_price for {ticker}: {e}")
+        return None
+
 def analyze_portfolio(account_info=None, stock_prices=None):
     """Analyze portfolio and generate buy/sell recommendations based on thresholds.
 
@@ -328,6 +383,50 @@ def analyze_portfolio(account_info=None, stock_prices=None):
         thresholds = portfolio_config[ticker]
         buy_threshold = thresholds.get("buy_threshold")
         sell_threshold = thresholds.get("sell_threshold")
+
+        # --- Stop-loss check (runs before threshold / indicator logic) ---
+        avg_price_db = _fetch_avg_price(ticker)
+        avg_price_sl = avg_price_db if (avg_price_db and avg_price_db > 0) else None
+        thirty_day_high = _fetch_thirty_day_high(ticker)
+
+        if avg_price_sl and thirty_day_high:
+            sl_triggered, sl_reason, sl_type = check_trailing_stop_loss(
+                current_price=current_price,
+                avg_price=avg_price_sl,
+                thirty_day_high=thirty_day_high,
+            )
+            if sl_triggered:
+                loss_pct = (avg_price_sl - current_price) / avg_price_sl * 100
+                full_reason = f"STOP_LOSS: {sl_reason}"
+                recommendations.append(
+                    {
+                        "ticker": ticker,
+                        "action": "SELL",
+                        "quantity": 5,
+                        "current_price": current_price,
+                        "threshold": None,
+                        "reason": full_reason,
+                        "stop_loss": True,
+                        "stop_type": sl_type,
+                    }
+                )
+                logger.warning(
+                    f"STOP-LOSS triggered: {ticker} SELL at ${current_price:.2f} -- {sl_reason} | Loss: {loss_pct:.1f}%"
+                )
+                try:
+                    from scripts.notifier import notify_channel
+                    alert_msg = (
+                        f"🛑 STOP-LOSS triggered: {ticker} SELL at ${current_price:.2f}"
+                        f" -- {sl_reason} | Loss: {loss_pct:.1f}%"
+                    )
+                    notify_channel(
+                        alert_msg,
+                        signal_key=f"STOPLOSS_{ticker}",
+                        cooldown_hours=1,
+                    )
+                except Exception as notify_err:
+                    logger.warning(f"Stop-loss Telegram alert failed: {notify_err}")
+                continue  # Skip threshold/indicator logic for this ticker
 
         # --- Indicator-based signals ---
         indicator_action, indicator_reason = _build_indicator_reason(

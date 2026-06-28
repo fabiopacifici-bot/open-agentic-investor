@@ -74,3 +74,78 @@ def detect_volume_spike(volumes: list, threshold: float = 1.5) -> bool:
     if avg == 0:
         return False
     return volumes[-1] > threshold * avg
+
+
+def check_trailing_stop_loss(
+    current_price: float,
+    avg_price: float,
+    thirty_day_high: float,
+    trailing_pct: float = 0.10,
+    hard_stop_pct: float = 0.15,
+) -> tuple:
+    """Check whether a trailing stop or hard stop-loss has been triggered.
+
+    Two stop types are evaluated independently:
+    - **Trailing stop**: triggered when ``current_price < thirty_day_high * (1 - trailing_pct)``.
+    - **Hard stop**: triggered when ``current_price < avg_price * (1 - hard_stop_pct)``.
+
+    When both are triggered the one representing the *larger* loss (lower price
+    relative to the respective reference) is returned.
+
+    Args:
+        current_price:   Most recent price of the asset.
+        avg_price:       Average (cost-basis) price held.
+        thirty_day_high: Highest price recorded over the past 30 trading days.
+        trailing_pct:    Drop from 30-day high that triggers the trailing stop (default 10%).
+        hard_stop_pct:   Drop from avg_price that triggers the hard stop (default 15%).
+
+    Returns:
+        Tuple of ``(triggered: bool, reason: str, stop_type: str)``.
+        - *triggered*: True if either stop fired.
+        - *reason*: Human-readable explanation, e.g.
+          "Trailing stop: price $85.00 is 15.0% below 30-day high $100.00".
+        - *stop_type*: ``"trailing"``, ``"hard"``, or ``"none"``.
+    """
+    trailing_threshold = thirty_day_high * (1 - trailing_pct)
+    hard_threshold = avg_price * (1 - hard_stop_pct)
+
+    trailing_triggered = current_price < trailing_threshold
+    hard_triggered = current_price < hard_threshold
+
+    if not trailing_triggered and not hard_triggered:
+        return False, "", "none"
+
+    if trailing_triggered and not hard_triggered:
+        drop_pct = (thirty_day_high - current_price) / thirty_day_high * 100
+        reason = (
+            f"Trailing stop: price ${current_price:.2f} is {drop_pct:.1f}% "
+            f"below 30-day high ${thirty_day_high:.2f}"
+        )
+        return True, reason, "trailing"
+
+    if hard_triggered and not trailing_triggered:
+        drop_pct = (avg_price - current_price) / avg_price * 100
+        reason = (
+            f"Hard stop: price ${current_price:.2f} is {drop_pct:.1f}% "
+            f"below avg price ${avg_price:.2f}"
+        )
+        return True, reason, "hard"
+
+    # Both triggered — return the one representing the larger loss
+    trailing_drop = (thirty_day_high - current_price) / thirty_day_high
+    hard_drop = (avg_price - current_price) / avg_price
+
+    if trailing_drop >= hard_drop:
+        drop_pct = trailing_drop * 100
+        reason = (
+            f"Trailing stop: price ${current_price:.2f} is {drop_pct:.1f}% "
+            f"below 30-day high ${thirty_day_high:.2f}"
+        )
+        return True, reason, "trailing"
+    else:
+        drop_pct = hard_drop * 100
+        reason = (
+            f"Hard stop: price ${current_price:.2f} is {drop_pct:.1f}% "
+            f"below avg price ${avg_price:.2f}"
+        )
+        return True, reason, "hard"
