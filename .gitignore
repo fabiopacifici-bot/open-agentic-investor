@@ -17,3 +17,6 @@ venv/
 .venv/
 *.egg-info/
 .pytest_cache/
+
+# Sensitive config — thresholds/strategy
+config/config.json
